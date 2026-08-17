@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>traa.sh — Docs</title>
+  <meta name="description" content="Developer documentation for traa.sh: getting started, keyboard and UI, Lua config, themes, layouts, status bars, and plugin development." />
+  <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Documentation">
+    <div class="inner">
+      <a class="brand-lockup" href="index.html">
+        <img src="assets/traash.svg" alt="" width="36" height="36" />
+        <span>traa.sh</span>
+      </a>
+      <div class="nav-links">
+        <a class="active" href="index.html">Docs</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero wrap" id="top">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-brand">
+          <img src="assets/traash.svg" alt="traa.sh logo" width="72" height="72" />
+          <p class="hero-wordmark">traa.sh</p>
+        </div>
+        <h1>GPU terminal with Lua config, layouts, and plugins</h1>
+        <p class="lead">
+          OpenGL rendering, tmux-style mux, a live session overview, and a Lua
+          customization surface written for humans and coding agents.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="getting-started.html">Get started</a>
+          <a class="btn btn-ghost" href="keyboard-ui.html">Keyboard &amp; UI</a>
+          <a class="btn btn-ghost" href="plugins.html">Plugin guide</a>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <img src="assets/traash.svg" alt="" />
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="map" aria-labelledby="map-title">
+      <p class="eyebrow">Map</p>
+      <h2 id="map-title">Guides</h2>
+      <div class="toc">
+        <a href="getting-started.html">Getting started<span>Build, install, CLI, config</span></a>
+        <a href="keyboard-ui.html">Keyboard &amp; UI<span>Keys, overview, settings, overlays</span></a>
+        <a href="plugins.html">Plugin development<span>API, hooks, segments, notify</span></a>
+        <a href="#config">Config schema<span>~/.config/traash/config.lua</span></a>
+        <a href="#layouts">Layouts<span>lua/layouts/&lt;name&gt;.lua</span></a>
+        <a href="#themes">Themes<span>lua/themes/&lt;name&gt;.lua</span></a>
+        <a href="#status">Status bars<span>lua/status/&lt;name&gt;.lua</span></a>
+        <a href="#agents">For agents<span>schemas + conventions</span></a>
+      </div>
+    </section>
+
+    <section id="config" aria-labelledby="config-title">
+      <p class="eyebrow">01 — Config</p>
+      <h2 id="config-title">User configuration</h2>
+      <p class="section-lead">
+        Defaults load from <code>lua/defaults/config.lua</code>, then merge with
+        <code>~/.config/traash/config.lua</code>. Settings writes the same file.
+      </p>
+      <div class="callout">
+        <strong>Load order:</strong> built-in defaults → user <code>config.lua</code> →
+        optional <code>leader</code> / <code>keys</code> applied onto keymap defaults
+        (new actions keep shipping binds if an old save omits them).
+      </div>
+<pre><span class="c">-- ~/.config/traash/config.lua</span>
+config = {
+  theme = <span class="s">"tokyo-night"</span>,
+  status_bar = <span class="s">"pills"</span>,
+  default_layout = <span class="s">""</span>,  <span class="c">-- e.g. "dev"; empty = single pane</span>
+  font = <span class="s">"Hack Nerd Font Mono"</span>,
+  font_size = <span class="n">14</span>,
+  opacity = <span class="n">1.0</span>,
+  cursor_style = <span class="n">1</span>,  <span class="c">-- 0 block, 1 beam, 2 underline</span>
+  scrollback = <span class="n">5000</span>,
+  plugins = {
+    <span class="s">"git-status"</span>, <span class="s">"cwd-short"</span>, <span class="s">"battery"</span>,
+    <span class="s">"ssh-hint"</span>, <span class="s">"notify-on-bell"</span>,
+  },
+  leader = { key = <span class="n">66</span>, mods = <span class="n">1</span> },
+  keys = {
+    { action = <span class="s">"split_v"</span>, key = <span class="n">53</span>, mods = <span class="n">2</span>, prefix = <span class="n">1</span> },
+  },
+}
+<span class="k">return</span> config</pre>
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>theme</code></td><td>string</td><td>Theme id without path</td></tr>
+          <tr><td><code>status_bar</code></td><td>string</td><td><code>pills</code>, <code>tmux</code>, <code>minimal</code>, <code>powerline</code>, <code>dev</code>, <code>compact</code>, <code>centered</code></td></tr>
+          <tr><td><code>default_layout</code></td><td>string</td><td>Applied on startup unless attaching to an existing session</td></tr>
+          <tr><td><code>font</code></td><td>string</td><td>Fontconfig family; Settings lists monospace faces</td></tr>
+          <tr><td><code>font_size</code></td><td>number</td><td>8–48 px before content-scale</td></tr>
+          <tr><td><code>opacity</code></td><td>number</td><td>0.3–1.0</td></tr>
+          <tr><td><code>cursor_style</code></td><td>int</td><td>0 block · 1 beam · 2 underline</td></tr>
+          <tr><td><code>scrollback</code></td><td>int</td><td>History lines</td></tr>
+          <tr><td><code>plugins</code></td><td>string[]</td><td>Max 16 ids under <code>plugins/examples/&lt;id&gt;/</code></td></tr>
+          <tr><td><code>leader</code></td><td>table</td><td><code>{ key, mods }</code> — ctrl=1 shift=2 alt=4 super=8</td></tr>
+          <tr><td><code>keys</code></td><td>table[]</td><td><code>{ action, key, mods, prefix }</code></td></tr>
+        </tbody>
+      </table>
+      <h3 style="font-family:var(--font-display);letter-spacing:-0.02em;margin:1.5rem 0 0.75rem;">Action names</h3>
+      <div class="pill-row">
+        <span class="pill">split_h</span><span class="pill">split_v</span><span class="pill">pane_next</span>
+        <span class="pill">pane_left</span><span class="pill">pane_down</span><span class="pill">pane_up</span>
+        <span class="pill">pane_right</span><span class="pill">zoom</span><span class="pill">new_window</span>
+        <span class="pill">next_window</span><span class="pill">prev_window</span><span class="pill">goto_window</span>
+        <span class="pill">detach</span>
+        <span class="pill">reload_config</span><span class="pill">command_palette</span><span class="pill">theme_cycle</span>
+        <span class="pill">status_cycle</span><span class="pill">font_increase</span><span class="pill">font_decrease</span>
+        <span class="pill">demo</span><span class="pill">copy_mode</span>
+        <span class="pill">copy</span><span class="pill">paste</span><span class="pill">search</span>
+        <span class="pill">settings</span><span class="pill">shortcuts</span><span class="pill">layout_picker</span>
+        <span class="pill">overview</span>
+        <span class="pill">quit</span>
+      </div>
+      <p class="note"><code>status_cycle</code> and <code>demo</code> have no default chord (command palette). <code>copy_mode</code> is reserved (prefix <code>[</code>) and currently has no runtime handler.</p>
+    </section>
+
+    <section id="layouts" aria-labelledby="layouts-title">
+      <p class="eyebrow">02 — Layouts</p>
+      <h2 id="layouts-title">Saved session layouts</h2>
+      <p class="section-lead">
+        Lookup: <code>~/.config/traash/layouts/&lt;name&gt;.lua</code> then
+        <code>lua/layouts/&lt;name&gt;.lua</code> (user names override bundled).
+      </p>
+      <div class="callout">
+        <strong>Picker:</strong> <code>Ctrl-Shift-L</code> (action <code>layout_picker</code>).
+        Enter applies · <code>s</code> saves · Del deletes a user layout · Esc closes.
+        Apply recreates tabs/panes with fresh shells — geometry only.
+        <code>default_layout</code> is skipped when using <code>--attach</code>.
+      </div>
+      <div class="pill-row">
+        <span class="pill">single</span><span class="pill">h-split</span>
+        <span class="pill">v-split</span><span class="pill">dev</span>
+      </div>
+<pre>layout = {
+  name = <span class="s">"dev"</span>,
+  windows = {
+    {
+      name = <span class="s">"1"</span>,
+      active = <span class="n">1</span>,
+      panes = {
+        { x = <span class="n">0</span>, y = <span class="n">0</span>, w = <span class="n">1</span>, h = <span class="n">0.5</span> },
+        { x = <span class="n">0</span>, y = <span class="n">0.5</span>, w = <span class="n">1</span>, h = <span class="n">0.5</span> },
+      },
+    },
+  },
+}
+<span class="k">return</span> layout</pre>
+    </section>
+
+    <section id="themes" aria-labelledby="themes-title">
+      <p class="eyebrow">03 — Themes</p>
+      <h2 id="themes-title">Color themes</h2>
+      <p class="section-lead">
+        Lookup: <code>~/.config/traash/themes/&lt;name&gt;.lua</code> then
+        <code>lua/themes/&lt;name&gt;.lua</code>.
+      </p>
+      <div class="pill-row">
+        <span class="pill">tokyo-night</span><span class="pill">catppuccin-mocha</span>
+        <span class="pill">dracula</span><span class="pill">gruvbox-dark</span>
+        <span class="pill">nord</span><span class="pill">one-dark</span>
+        <span class="pill">solarized-dark</span><span class="pill">solarized-light</span>
+        <span class="pill">rose-pine</span><span class="pill">github-dark</span>
+        <span class="pill">traash-dark</span>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Required shape</h3>
+          <p>Hex <code>#RRGGBB</code>. Missing keys fall back. <code>ansi[0..15]</code> is the 16-color palette plus chrome keys (tab/pane/status).</p>
+        </div>
+        <div class="card">
+          <h3>Live reload</h3>
+          <p>Enable <code>autoreload-theme</code>, or call <code>traash.reload_theme()</code> from a plugin.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="status" aria-labelledby="status-title">
+      <p class="eyebrow">04 — Status bars</p>
+      <h2 id="status-title">Status bar styles</h2>
+      <div class="pill-row">
+        <span class="pill">pills</span><span class="pill">powerline</span><span class="pill">minimal</span>
+        <span class="pill">tmux</span><span class="pill">dev</span><span class="pill">compact</span>
+        <span class="pill">centered</span>
+      </div>
+      <p class="note"><code>pills</code>, <code>minimal</code>, <code>powerline</code>, <code>dev</code>, and <code>tmux</code> read plugin chips from <code>ctx.seg.*</code>. <code>compact</code> and <code>centered</code> ignore plugin segments.</p>
+      <table>
+        <thead>
+          <tr><th>ctx field</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>session</code></td><td>Attached mux session name</td></tr>
+          <tr><td><code>window</code></td><td>Active window id</td></tr>
+          <tr><td><code>title</code></td><td>Active pane title (OSC 0/2)</td></tr>
+          <tr><td><code>cwd</code></td><td>OSC-7 cwd when set</td></tr>
+          <tr><td><code>host</code></td><td>Hostname</td></tr>
+          <tr><td><code>time</code></td><td><code>HH:MM</code> local</td></tr>
+          <tr><td><code>seg.*</code></td><td>Plugin segment strings</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="agents" aria-labelledby="agents-title">
+      <p class="eyebrow">05 — Agents</p>
+      <h2 id="agents-title">Agent-ready reference</h2>
+      <p class="section-lead">
+        Prefer <a href="llms.txt">llms.txt</a> and the <a href="plugins.html">plugin guide</a>.
+        Do not invent host APIs.
+      </p>
+      <div class="callout">
+        <strong>Invariant:</strong> Plugins cannot draw UI. Use segments, hooks, notify, clipboard override, or <code>run_action</code>.
+        Desktop notifications are transient (3.5s) and replace the previous traa.sh notification.
+        <code>on_bell</code> fires only while the window is unfocused.
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Do</h3>
+          <p>Ship files under <code>lua/</code> or <code>~/.config/traash/</code>. Keep segment work cheap (~2 Hz). Restart after plugin code changes.</p>
+        </div>
+        <div class="card">
+          <h3>Do not</h3>
+          <p>Assume a user plugin directory, plugin hot-reload, sandboxing, or that <code>reload_config</code> reloads plugins.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap inner">
+      <div style="display:flex;align-items:center;gap:0.65rem;">
+        <img src="assets/traash.svg" alt="" width="28" height="28" style="border-radius:7px;" />
+        <span>traa.sh docs</span>
+      </div>
+      <div>
+        <a href="https://traa.sh">traa.sh</a>
+        ·
+        <a href="getting-started.html">Getting started</a>
+        ·
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

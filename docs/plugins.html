@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plugin development — traa.sh</title>
+  <meta name="description" content="Complete traa.sh plugin guide: file shape, host API, hooks, status segments, actions, clipboard, and notifications." />
+  <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Documentation">
+    <div class="inner">
+      <a class="brand-lockup" href="index.html">
+        <img src="assets/traash.svg" alt="" width="36" height="36" />
+        <span>traa.sh</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Docs</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        <a class="active" href="plugins.html">Plugins</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero page-hero wrap">
+    <p class="eyebrow">Guide</p>
+    <h1>Plugin development</h1>
+    <p class="lead">Lua plugins run in-process, unsandboxed, against the host in <code>src/plugin/host.c</code>. The repository-side canonical API lives in <code>lua/api/README.md</code> — keep both in sync when you change the host.</p>
+  </header>
+
+  <main class="wrap">
+    <section id="shape" aria-labelledby="shape-title">
+      <p class="eyebrow">01 — Shape</p>
+      <h2 id="shape-title">File and module layout</h2>
+      <p class="section-lead">Each plugin is a directory whose name is the plugin id. The host loads exactly one file:</p>
+<pre>lua/plugins/examples/&lt;id&gt;/init.lua</pre>
+      <p>There is <strong>no user plugin directory</strong>. To ship a plugin, add it under that tree (or point <code>TRAASH_LUA_PATH</code> at a tree that contains it) and list the id in <code>config.plugins</code>.</p>
+<pre><span class="c">-- lua/plugins/examples/my-chip/init.lua</span>
+<span class="k">return</span> {
+  setup = <span class="k">function</span>()
+    traash.segments.mychip = <span class="k">function</span>()
+      <span class="k">return</span> <span class="s">"ok"</span>  <span class="c">-- empty string hides the chip</span>
+    <span class="k">end</span>
+    traash.on(<span class="s">"on_bell"</span>, <span class="k">function</span>()
+      traash.notify(<span class="s">"Bell"</span>)
+    <span class="k">end</span>)
+    traash.log(<span class="s">"my-chip: ready"</span>)
+  <span class="k">end</span>,
+}</pre>
+      <p>The file may instead return a function; that function is called as setup. Any other return value is ignored after load.</p>
+      <h3 id="enable">Enabling</h3>
+<pre>plugins = {
+  <span class="s">"git-status"</span>,
+  <span class="s">"cwd-short"</span>,
+  <span class="s">"my-chip"</span>,
+}</pre>
+      <p>Config accepts at most <strong>16</strong> plugin ids. Order is load order. A failed <code>dofile</code> or <code>setup</code> error is logged; that plugin is marked failed and skipped.</p>
+    </section>
+
+    <section id="lifecycle" aria-labelledby="lifecycle-title">
+      <p class="eyebrow">02 — Lifecycle</p>
+      <h2 id="lifecycle-title">When plugins run</h2>
+      <ol>
+        <li>Host creates the global <code>traash</code> table (API, empty <code>segments</code>, <code>hooks</code>, <code>ctx</code>).</li>
+        <li>Each enabled id is loaded and <code>setup()</code> runs once.</li>
+        <li>Every ~0.5s the status bar rebuilds (calling every <code>traash.segments.*</code> function) and <code>on_tick</code> fires.</li>
+        <li>Other hooks fire from terminal/mux state in the main loop.</li>
+      </ol>
+      <div class="callout warn">
+        <strong>No hot reload.</strong> <code>reload_config</code> reloads <code>config.lua</code> (theme, keys, appearance) but does not re-run plugin setup. Change plugin code or the plugin list, then restart traa.sh.
+      </div>
+    </section>
+
+    <section id="api" aria-labelledby="api-title">
+      <p class="eyebrow">03 — API</p>
+      <h2 id="api-title">Host functions</h2>
+      <table>
+        <thead>
+          <tr><th>Symbol</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>traash.log(msg)</code></td><td>Write to the traa.sh log</td></tr>
+          <tr><td><code>traash.notify(msg)</code></td><td>Log plus a desktop notification. Linux uses <code>notify-send</code> (transient 3.5s, replaces the previous traa.sh notification). macOS uses <code>osascript</code></td></tr>
+          <tr><td><code>traash.on(event, fn)</code></td><td>Register a hook. Multiple listeners per event are kept in a list</td></tr>
+          <tr><td><code>traash.segments.name = fn</code></td><td>Status chip. <code>fn()</code> must return a string; empty hides it. Name becomes <code>ctx.seg.name</code></td></tr>
+          <tr><td><code>traash.ctx.title</code> / <code>traash.ctx.cwd</code></td><td>Active pane OSC title and OSC-7 cwd (updated before status paint)</td></tr>
+          <tr><td><code>traash.set_clipboard(text)</code></td><td>Override clipboard contents from <code>on_copy</code></td></tr>
+          <tr><td><code>traash.theme_path()</code></td><td>Filesystem path of the active theme Lua file (bundled lua dir)</td></tr>
+          <tr><td><code>traash.reload_theme()</code></td><td>Request the host to reload the current theme next frame</td></tr>
+          <tr><td><code>traash.sessions()</code></td><td>Array of mux session names</td></tr>
+          <tr><td><code>traash.run_action(name)</code></td><td>Queue an action id (for example <code>"overview"</code>, <code>"command_palette"</code>)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Do not invent host APIs. Plugins cannot draw UI, open windows, or bind keys directly — use segments, hooks, notify, clipboard override, or <code>run_action</code>.</p>
+      <h3 id="run-action">Queued actions</h3>
+      <p><code>run_action</code> stores a single pending name. The main loop drains it once per frame, so a second call in the same frame overwrites the first. Valid names are the action ids in the <a href="keyboard-ui.html#keymap">keymap</a>, including <code>overview</code>.</p>
+    </section>
+
+    <section id="hooks" aria-labelledby="hooks-title">
+      <p class="eyebrow">04 — Hooks</p>
+      <h2 id="hooks-title">Events</h2>
+      <table>
+        <thead>
+          <tr><th>Event</th><th>When</th><th>Argument</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>on_tick</code></td><td>~every 0.5s with status refresh</td><td>—</td></tr>
+          <tr><td><code>on_bell</code></td><td>Terminal BEL, and only while the window is <em>unfocused</em></td><td>—</td></tr>
+          <tr><td><code>on_command_finished</code></td><td>OSC 133 command-done (prompt returned)</td><td>—</td></tr>
+          <tr><td><code>on_pane_focus</code></td><td>Active pane id changes</td><td>pane title string</td></tr>
+          <tr><td><code>on_copy</code></td><td>Selection copied</td><td>clipboard text</td></tr>
+        </tbody>
+      </table>
+      <p>Inactive tabs also get an attention badge on output, BEL, or command-finished even when those hooks do not fire (for example BEL while focused).</p>
+    </section>
+
+    <section id="status" aria-labelledby="status-title">
+      <p class="eyebrow">05 — Status</p>
+      <h2 id="status-title">Segments and ctx</h2>
+      <p>Status styles are Lua files under <code>lua/status/&lt;id&gt;.lua</code> returning <code>function(ctx) … end</code>. Before the style runs, the host fills <code>ctx.seg</code> by calling every function in <code>traash.segments</code>. Empty strings are omitted.</p>
+      <table>
+        <thead>
+          <tr><th>ctx field</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>session</code></td><td>Attached mux session name</td></tr>
+          <tr><td><code>window</code></td><td>Active window id</td></tr>
+          <tr><td><code>title</code></td><td>Active pane title</td></tr>
+          <tr><td><code>cwd</code></td><td>OSC-7 cwd when set</td></tr>
+          <tr><td><code>host</code></td><td>Hostname</td></tr>
+          <tr><td><code>time</code></td><td><code>HH:MM</code> local</td></tr>
+          <tr><td><code>seg.&lt;name&gt;</code></td><td>Plugin chip strings</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Styles that consume chips:</strong> <code>pills</code>, <code>minimal</code>, <code>powerline</code>, <code>dev</code>, <code>tmux</code> read <code>ctx.seg.*</code>.
+        <strong>Styles that ignore chips:</strong> <code>compact</code> and <code>centered</code> build a fixed line and never look at <code>ctx.seg</code>.
+      </div>
+      <p>Keep segment functions cheap. Status and <code>on_tick</code> run about twice a second. Cache subprocess work (see <code>git-status</code>).</p>
+    </section>
+
+    <section id="notify" aria-labelledby="notify-title">
+      <p class="eyebrow">06 — Side effects</p>
+      <h2 id="notify-title">Clipboard and notifications</h2>
+      <p>In <code>on_copy</code>, call <code>traash.set_clipboard(text)</code> to replace what the host puts on the clipboard (the <code>copy-enhancements</code> example trims trailing whitespace this way).</p>
+      <p><code>traash.notify</code> is a short-lived desktop bubble, not a persistent inbox. On Linux it replaces the previous traa.sh notification. If <code>notify-send</code> is missing, the message is still logged. On macOS it uses Notification Center via <code>osascript</code>. Prefer rate-limiting in the plugin (the bell example waits 15 seconds).</p>
+    </section>
+
+    <section id="constraints" aria-labelledby="constraints-title">
+      <p class="eyebrow">07 — Constraints</p>
+      <h2 id="constraints-title">Practical limits</h2>
+      <ul>
+        <li>Trusted, unsandboxed Lua in the UI process — treat plugin code like the rest of the app.</li>
+        <li>Bundled path only: <code>plugins/examples/&lt;id&gt;/init.lua</code>.</li>
+        <li>At most 16 ids in <code>config.plugins</code>.</li>
+        <li>Status refresh ~2 Hz; one queued <code>run_action</code> per frame.</li>
+        <li>No plugin hot reload; no user plugin dir; <code>reload_config</code> does not re-init plugins.</li>
+        <li>No direct drawing. Overlays, tabs, and the overview are host UI.</li>
+      </ul>
+    </section>
+
+    <section id="examples" aria-labelledby="examples-title">
+      <p class="eyebrow">08 — Examples</p>
+      <h2 id="examples-title">Bundled plugins</h2>
+      <p>Enabled by default in <code>lua/defaults/config.lua</code>:</p>
+      <table>
+        <thead>
+          <tr><th>Id</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>git-status</code></td><td>Branch chip via <code>git -C cwd</code>, cached per second</td></tr>
+          <tr><td><code>cwd-short</code></td><td>Short OSC-7 path chip</td></tr>
+          <tr><td><code>battery</code></td><td>Linux sysfs <code>BAT0</code>/<code>BAT1</code> percentage</td></tr>
+          <tr><td><code>ssh-hint</code></td><td>SSH badge from pane title; notify on focus</td></tr>
+          <tr><td><code>notify-on-bell</code></td><td>Desktop notify on background BEL, 15s cooldown</td></tr>
+          <tr><td><code>autoreload-theme</code></td><td>Watch theme file mtime; <code>reload_theme()</code></td></tr>
+          <tr><td><code>session-picker</code></td><td>Session-count chip</td></tr>
+          <tr><td><code>copy-enhancements</code></td><td>Trim copy + notify size</td></tr>
+        </tbody>
+      </table>
+      <p>Optional examples (not default-enabled — add them to <code>config.plugins</code>):</p>
+      <table>
+        <thead>
+          <tr><th>Id</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>hints</code></td><td>Status tip pointing at the shortcuts overlay; notifies once at setup</td></tr>
+          <tr><td><code>welcome</code></td><td>One-shot welcome notification on startup</td></tr>
+        </tbody>
+      </table>
+      <h3 id="bell-example">Minimal hook example</h3>
+<pre><span class="c">-- lua/plugins/examples/notify-on-bell/init.lua</span>
+<span class="k">local</span> last = <span class="n">0</span>
+<span class="k">return</span> {
+  setup = <span class="k">function</span>()
+    traash.on(<span class="s">"on_bell"</span>, <span class="k">function</span>()
+      <span class="k">local</span> now = os.time()
+      <span class="k">if</span> now - last &gt;= <span class="n">15</span> <span class="k">then</span>
+        last = now
+        traash.notify(<span class="s">"Bell in traa.sh"</span>)
+      <span class="k">end</span>
+    <span class="k">end</span>)
+  <span class="k">end</span>,
+}</pre>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap inner">
+      <div style="display:flex;align-items:center;gap:0.65rem;">
+        <img src="assets/traash.svg" alt="" width="28" height="28" style="border-radius:7px;" />
+        <span>traa.sh docs</span>
+      </div>
+      <div>
+        <a href="index.html">Docs</a>
+        ·
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        ·
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Getting started — traa.sh</title>
+  <meta name="description" content="Build, install, and run traa.sh. CLI flags, config location, sessions, and first-run defaults." />
+  <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Documentation">
+    <div class="inner">
+      <a class="brand-lockup" href="index.html">
+        <img src="assets/traash.svg" alt="" width="36" height="36" />
+        <span>traa.sh</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Docs</a>
+        <a class="active" href="getting-started.html">Getting started</a>
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero page-hero wrap">
+    <p class="eyebrow">Guide</p>
+    <h1>Getting started</h1>
+    <p class="lead">Build from source, install a desktop entry, and attach a mux session. Config lives in Lua next to themes, layouts, and plugins.</p>
+  </header>
+
+  <main class="wrap">
+    <section id="build" aria-labelledby="build-title">
+      <p class="eyebrow">01 — Build</p>
+      <h2 id="build-title">Build and run</h2>
+      <p class="section-lead">Dependencies: CMake, Ninja, OpenGL, FreeType, HarfBuzz, Lua, Fontconfig, and <code>libutil</code> (pty on Linux). GLFW is fetched by CMake.</p>
+<pre><span class="c"># Debian/Ubuntu</span>
+sudo apt-get install ninja-build pkg-config libfreetype6-dev libharfbuzz-dev \
+  liblua5.4-dev libfontconfig1-dev libgl1-mesa-dev \
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+  libwayland-dev libxkbcommon-dev
+
+<span class="c"># macOS</span>
+brew install cmake ninja pkg-config freetype harfbuzz lua fontconfig
+
+cmake -B build -G Ninja
+cmake --build build
+./build/traash</pre>
+      <p>Makefile wrappers:</p>
+<pre>make            <span class="c"># configure + build</span>
+make run        <span class="c"># ./build/traash</span>
+make test       <span class="c"># ctest</span>
+make demo       <span class="c"># ./build/traash --demo</span></pre>
+      <h3 id="tests">Tests</h3>
+<pre>ctest --test-dir build --output-on-failure
+./build/traash --headless-test
+./build/traash --headless-test --demo --auto</pre>
+      <p class="note"><code>--headless-test</code> initializes core subsystems and exits. It does not open a window. Tagged GitHub releases (<code>v*</code>) ship relocatable Linux and macOS tarballs.</p>
+    </section>
+
+    <section id="install" aria-labelledby="install-title">
+      <p class="eyebrow">02 — Install</p>
+      <h2 id="install-title">Desktop install</h2>
+      <p class="section-lead">Installs the binary, bundled Lua tree, and (on Linux) the <code>.desktop</code> file and hicolor icons. Default prefix is <code>~/.local</code>.</p>
+<pre>make install
+<span class="c"># system-wide:</span>
+make install PREFIX=/usr/local</pre>
+      <div class="grid-2">
+        <div class="card">
+          <h3>X11</h3>
+          <p>RGBA sizes are baked into the binary and applied with <code>glfwSetWindowIcon</code>. After changing <code>assets/icons/traash.png</code>, run <code>make embed-icon</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Wayland / launchers</h3>
+          <p>The desktop file maps <code>Icon=sh.traa.traash</code>. Install so the compositor can find hicolor icons.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cli" aria-labelledby="cli-title">
+      <p class="eyebrow">03 — CLI</p>
+      <h2 id="cli-title">Command-line flags</h2>
+      <table>
+        <thead>
+          <tr><th>Flag</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>traash</code></td><td>Open the GUI and attach (or create) the default session</td></tr>
+          <tr><td><code>--demo [--auto]</code></td><td>Capability demo; <code>--auto</code> advances without waiting</td></tr>
+          <tr><td><code>--server</code></td><td>Run the mux server only (no window)</td></tr>
+          <tr><td><code>--list-sessions</code></td><td>List sessions on the mux socket</td></tr>
+          <tr><td><code>--attach NAME</code></td><td>Attach an existing named session</td></tr>
+          <tr><td><code>--create NAME</code></td><td>Create a named session</td></tr>
+          <tr><td><code>--headless-test</code></td><td>Init core and exit (CI)</td></tr>
+          <tr><td><code>-h</code> / <code>--help</code></td><td>Print usage</td></tr>
+        </tbody>
+      </table>
+      <p class="note">The mux socket lives under <code>$XDG_RUNTIME_DIR/traash/mux.sock</code> (or <code>~/.traash/mux.sock</code> if that env is unset).</p>
+    </section>
+
+    <section id="config" aria-labelledby="config-title">
+      <p class="eyebrow">04 — Config</p>
+      <h2 id="config-title">Where files live</h2>
+      <table>
+        <thead>
+          <tr><th>Path</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>lua/defaults/config.lua</code></td><td>Shipped defaults</td></tr>
+          <tr><td><code>~/.config/traash/config.lua</code></td><td>User overlay; Settings writes this file</td></tr>
+          <tr><td><code>~/.config/traash/themes/</code></td><td>User themes (override bundled ids)</td></tr>
+          <tr><td><code>~/.config/traash/layouts/</code></td><td>User layouts (override bundled ids)</td></tr>
+          <tr><td><code>lua/themes/</code>, <code>lua/status/</code>, <code>lua/layouts/</code></td><td>Bundled assets</td></tr>
+          <tr><td><code>lua/plugins/examples/&lt;id&gt;/init.lua</code></td><td>Only plugin location the host loads</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Lua root:</strong> set <code>TRAASH_LUA_PATH</code> to point at a Lua tree (the directory that contains <code>defaults/</code>, <code>themes/</code>, <code>plugins/</code>). Otherwise traa.sh looks next to the binary, then the source tree.
+      </div>
+<pre><span class="c">-- ~/.config/traash/config.lua</span>
+config = {
+  theme = <span class="s">"tokyo-night"</span>,
+  status_bar = <span class="s">"pills"</span>,
+  default_layout = <span class="s">""</span>,
+  font = <span class="s">"Hack Nerd Font Mono"</span>,
+  font_size = <span class="n">14</span>,
+  opacity = <span class="n">1.0</span>,
+  cursor_style = <span class="n">1</span>,
+  scrollback = <span class="n">5000</span>,
+  plugins = {
+    <span class="s">"git-status"</span>, <span class="s">"cwd-short"</span>, <span class="s">"battery"</span>,
+    <span class="s">"ssh-hint"</span>, <span class="s">"notify-on-bell"</span>,
+  },
+}
+<span class="k">return</span> config</pre>
+      <p>See the <a href="index.html#config">config schema</a> for every field. Reload with <span class="kbd">Ctrl-Shift-R</span> (action <code>reload_config</code>). That reloads theme, font-related fields, and keys from disk; it does <em>not</em> reload plugins — restart the app after plugin list or plugin-code changes.</p>
+    </section>
+
+    <section id="sessions" aria-labelledby="sessions-title">
+      <p class="eyebrow">05 — Sessions</p>
+      <h2 id="sessions-title">Mux sessions</h2>
+      <p class="section-lead">traa.sh is a terminal and a tmux-style multiplexer. One process hosts sessions; extra clients attach over the mux socket.</p>
+      <ul>
+        <li>A <strong>session</strong> holds numbered <strong>windows</strong> (tabs) of <strong>panes</strong>.</li>
+        <li>Prefix <span class="kbd">Ctrl-b</span> then <span class="kbd">d</span> detaches; the session keeps running.</li>
+        <li><code>--attach NAME</code> reconnects. <code>default_layout</code> is skipped on attach so you do not wipe the live layout.</li>
+        <li>Closing the last shell (for example Ctrl-D in the last pane) exits the window, same as other terminals.</li>
+      </ul>
+      <h3 id="layouts">Startup layouts</h3>
+      <p>If <code>default_layout</code> is a known layout id (<code>single</code>, <code>h-split</code>, <code>v-split</code>, <code>dev</code>, or a user layout), it is applied on a fresh session. Apply recreates tabs and panes with <em>fresh shells</em> — geometry only, not cwd/title/scrollback. Open the picker anytime with <span class="kbd">Ctrl-Shift-L</span>.</p>
+      <p>Next: <a href="keyboard-ui.html">keyboard, overlays, and mouse</a>, then the <a href="plugins.html">plugin guide</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap inner">
+      <div style="display:flex;align-items:center;gap:0.65rem;">
+        <img src="assets/traash.svg" alt="" width="28" height="28" style="border-radius:7px;" />
+        <span>traa.sh docs</span>
+      </div>
+      <div>
+        <a href="index.html">Docs</a>
+        ·
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        ·
+        <a href="plugins.html">Plugins</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

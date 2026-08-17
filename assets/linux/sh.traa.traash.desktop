@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=traa.sh
+GenericName=Terminal Emulator
+Comment=GPU-accelerated terminal with Lua config
+Exec=traash
+Icon=sh.traa.traash
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupNotify=true
+StartupWMClass=sh.traa.traash
+Keywords=shell;prompt;command;terminal;

@@ -1,0 +1,182 @@
+# traa.sh developer docs (agent-oriented)
+
+> Site: docs/index.html (GitHub Pages). Product: https://traa.sh
+> Guides: getting-started.html, keyboard-ui.html, plugins.html
+> Terminal emulator with Lua config, themes, saved layouts, status bars, plugins, and a two-level session overview.
+
+## Paths
+
+- Defaults: `lua/defaults/config.lua`
+- User config: `~/.config/traash/config.lua`
+- Themes: `lua/themes/<id>.lua` or `~/.config/traash/themes/<id>.lua`
+- Status: `lua/status/<id>.lua`
+- Layouts: `lua/layouts/<id>.lua` or `~/.config/traash/layouts/<id>.lua` (user names override bundled)
+- Plugins: `lua/plugins/examples/<id>/init.lua` (enabled via `config.plugins`)
+- Lua root override: env `TRAASH_LUA_PATH`
+- Mux socket: `$XDG_RUNTIME_DIR/traash/mux.sock` or `~/.traash/mux.sock`
+
+## Config fields
+
+```lua
+config = {
+  theme = "tokyo-night",       -- theme id
+  status_bar = "pills",        -- status style id
+  default_layout = "",         -- layout id, or "" for single pane; applied on startup
+  font = "Hack Nerd Font Mono",
+  font_size = 14,
+  opacity = 1.0,               -- 0.3..1
+  cursor_style = 1,            -- 0 block, 1 beam, 2 underline
+  scrollback = 5000,
+  plugins = { "git-status", "cwd-short" },  -- max 16
+  leader = { key = 66, mods = 1 }, -- GLFW key; mods: ctrl=1 shift=2 alt=4 super=8
+  keys = {
+    { action = "split_v", key = 53, mods = 2, prefix = 1 },
+  },
+}
+return config
+```
+
+Action names: split_h, split_v, pane_next, pane_left, pane_down, pane_up, pane_right, zoom, new_window, next_window, prev_window, goto_window, detach, reload_config, command_palette, theme_cycle, status_cycle, font_increase, font_decrease, demo, copy_mode, copy, paste, search, settings, shortcuts, layout_picker, overview, quit.
+
+Default chords (shipping keymap):
+
+- Prefix Ctrl-b then: % split_v, " split_h, o pane_next, hjkl pane focus, z zoom, c new_window, n/Tab next_window, p prev_window, 0–9 goto_window, d detach, [ copy_mode (unimplemented), ? shortcuts
+- No prefix: Ctrl-hjkl pane focus, Ctrl-Shift-P palette, Ctrl-Shift-R reload_config, Ctrl-Shift-T theme_cycle, Ctrl-Shift-F search, Ctrl-Shift-C copy, Ctrl-Shift-V paste, Ctrl-Shift-, settings, Ctrl-Shift-/ shortcuts, Ctrl-Shift-L layout_picker, Ctrl-Shift-O overview, Ctrl-Shift-+ font_increase, Ctrl-- font_decrease, Ctrl-Shift-Q quit
+- Unbound by default: status_cycle, demo (command palette)
+- copy_mode is reserved and currently has no runtime handler
+
+Font zoom: `font_increase` defaults to Ctrl-Shift-+ and `font_decrease` defaults to Ctrl--. Each changes the live terminal font size by one pixel within the 8–48 px range. A toast shows `Font size  N px`. Numpad +/- and numpad Enter (= Enter) work in the shell and overlays.
+
+Goto window (`goto_window`, default prefix+0…9): select tab whose number matches the digit (same as the tab label). New tabs take the smallest unused positive number and insert in numeric order (gap reuse).
+
+Search (`search`, default Ctrl-Shift-F): status-bar find UI; highlights all matches (current in gold); Enter/F3/↓ next, Shift+Enter/Shift+F3/↑ prev; Esc closes. Case-insensitive over scrollback + screen.
+
+Layout picker (`layout_picker`, default Ctrl-Shift-L): overlay listing bundled + user layouts; Enter apply, `s` save current session, Del delete user layout, Esc close. Apply replaces all windows/panes with fresh shells (geometry only — no cwd/title/scrollback restore). `default_layout` is skipped when using `--attach`.
+
+Session overview (`overview`, default Ctrl-Shift-O): two-level live preview grid. Tabs: composite pane layout, title, pane count, attention badge. Enter/click on a multi-pane tab drills into per-pane cards (title/cwd/process + live preview). Enter/click focuses and closes. Esc: panes → tabs → close. ×/Delete/x closes the selected item (process confirmation if needed). Always keep one tab. Mutually exclusive with shortcuts and layout picker; quit dialog is topmost. Previews downsample existing TraashScreen cells (no extra PTYs/textures); skipped during interactive resize.
+
+Mouse tabs: left-click select, × close, + new; middle-click tab closes; middle-click pane pastes primary. Right-click context menu: Copy, Paste, Split Right, Split Down, Preferences. Inactive-tab attention badge on output / BEL / OSC 133;D; cleared on select.
+
+Quit (`quit`, default Ctrl-Shift-Q): if any pane has a foreground process, confirm; Cancel is the default. Same dialog is reused for overview tab/pane close.
+
+Settings (`settings`, default Ctrl-Shift-,): Appearance (theme, status, default_layout, opacity, monospace font-family dropdown, font size), Terminal (cursor, scrollback, plugin list), Shortcuts (leader + rebinding). Save writes `~/.config/traash/config.lua`. Keys merge onto defaults (missing actions keep built-in binds). `reload_config` reloads that file but does not reload plugins.
+
+Resize: interactive window drag uses a fast path; PTY size flushes after settle.
+
+## Layout file
+
+Full session snapshot. Each window has a flat `panes` list of normalized `x,y,w,h` fractions (nested splits are expressed as non-overlapping rects). `active` is 1-based pane index.
+
+```lua
+-- lua/layouts/dev.lua or ~/.config/traash/layouts/dev.lua
+layout = {
+  name = "dev",
+  windows = {
+    {
+      name = "1",
+      active = 1,
+      panes = {
+        { x = 0, y = 0, w = 1, h = 0.5 },
+        { x = 0, y = 0.5, w = 1, h = 0.5 },
+      },
+    },
+  },
+}
+return layout
+```
+
+Built-ins: single, h-split, v-split, dev. Settings Appearance combo sets `default_layout`.
+
+## Theme file
+
+Return a Lua table with hex `#RRGGBB` keys:
+
+- foreground, background, cursor, cursor_text, selection_fg, selection_bg
+- ansi[0]..ansi[15]
+- tab_bar, active_tab, inactive_tab, pane_border, active_pane_border
+- status_bar_fg, status_bar_bg
+
+Built-ins: tokyo-night, catppuccin-mocha, dracula, gruvbox-dark, nord, one-dark, solarized-dark, solarized-light, rose-pine, github-dark, traash-dark.
+
+## Status bar file
+
+```lua
+return function(ctx)
+  -- ctx: session, window, title, cwd, host, time, seg.<plugin>
+  return {
+    style = "pills", gap = 8, radius = 11, pad_x = 12, v_pad = 6,
+    { text = "...", align = "left"|"center"|"right", fg = "#RRGGBB", bg = "#RRGGBB" },
+  }
+end
+```
+
+Styles: pills, tmux, minimal, powerline, dev, compact, centered.
+pills/minimal/powerline/dev/tmux read `ctx.seg.*`. compact and centered ignore plugin segments.
+
+## Plugin file
+
+```lua
+return {
+  setup = function()
+    traash.segments.mychip = function()
+      return "text" -- empty string hides chip
+    end
+    traash.on("on_bell", function() traash.notify("Bell") end)
+  end,
+}
+```
+
+Path: `lua/plugins/examples/<id>/init.lua` only. Max 16 ids. No user plugin dir. No hot reload.
+
+### Plugin API
+
+| Symbol | Role |
+|--------|------|
+| traash.log(msg) | log |
+| traash.notify(msg) | notify-send (Linux, 3.5s transient, replaces previous) or osascript (macOS) + log |
+| traash.on(event, fn) | multi-listener hooks |
+| traash.segments.name = fn | status chip |
+| traash.ctx.title / cwd | active pane title / OSC-7 cwd |
+| traash.set_clipboard(text) | override from on_copy |
+| traash.theme_path() | active theme path (bundled lua dir) |
+| traash.reload_theme() | request reload |
+| traash.sessions() | {session names} |
+| traash.run_action(name) | queue one action id per frame |
+
+### Hooks
+
+| Event | When | Arg |
+|-------|------|-----|
+| on_tick | ~0.5s | — |
+| on_bell | BEL while window unfocused | — |
+| on_command_finished | OSC 133 command-done | — |
+| on_pane_focus | pane focus | title |
+| on_copy | copy | text |
+
+### Constraints for agents
+
+- No direct UI drawing from Lua; use segments/hooks/notify/actions.
+- Trusted unsandboxed Lua in the UI process.
+- Desktop notifications are transient, expire after 3.5 seconds, and replace the previous traa.sh notification.
+- Keep segment work cheap (status ~2 Hz).
+- Plugin ids must match folder names under plugins/examples/.
+- Do not invent host APIs beyond this document.
+- Layout apply does not restore cwd/title/scrollback; only pane geometry + fresh shells.
+- `reload_config` does not re-init plugins; restart after plugin changes.
+- `on_bell` is background-only (unfocused window). notify-on-bell also rate-limits 15s.
+
+## Example plugins
+
+Default-enabled: git-status, cwd-short, battery, ssh-hint, notify-on-bell, autoreload-theme, session-picker, copy-enhancements.
+Optional: hints, welcome.
+
+## CLI
+
+```
+traash --demo [--auto]
+traash --server
+traash --list-sessions
+traash --attach NAME
+traash --create NAME
+traash --headless-test
+```

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Keyboard &amp; UI — traa.sh</title>
+  <meta name="description" content="Default keymap, session overview, tabs, overlays, settings, mouse, font zoom, quit confirmation, and notifications." />
+  <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Documentation">
+    <div class="inner">
+      <a class="brand-lockup" href="index.html">
+        <img src="assets/traash.svg" alt="" width="36" height="36" />
+        <span>traa.sh</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Docs</a>
+        <a href="getting-started.html">Getting started</a>
+        <a class="active" href="keyboard-ui.html">Keyboard &amp; UI</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero page-hero wrap">
+    <p class="eyebrow">Guide</p>
+    <h1>Keyboard and UI</h1>
+    <p class="lead">Authoritative defaults as shipped. Rebind in Settings → Shortcuts or with <code>config.keys</code>. Missing actions in an old save keep their built-in chords.</p>
+  </header>
+
+  <main class="wrap">
+    <section id="leader" aria-labelledby="leader-title">
+      <p class="eyebrow">01 — Leader</p>
+      <h2 id="leader-title">Prefix / leader</h2>
+      <p class="section-lead">Default leader is <span class="kbd">Ctrl-b</span> (GLFW key 66, mods 1). Press it, then a prefix-bound key. Modifier keys alone do not cancel prefix mode.</p>
+      <p>Override with <code>config.leader = { key = 66, mods = 1 }</code>. Mods: ctrl=1, shift=2, alt=4, super=8.</p>
+      <div class="callout">
+        <strong>Why Ctrl-Shift for app chords:</strong> plain Ctrl-C / Ctrl-D / Ctrl-Z must reach the shell. Ctrl-h/j/k/l are the exception — they move pane focus without a prefix.
+      </div>
+    </section>
+
+    <section id="keymap" aria-labelledby="keymap-title">
+      <p class="eyebrow">02 — Defaults</p>
+      <h2 id="keymap-title">Default keymap</h2>
+
+      <h3 id="panes">Panes</h3>
+      <table>
+        <thead>
+          <tr><th>Chord</th><th>Action</th><th>Id</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Prefix <span class="kbd">%</span></td><td>Split vertically</td><td><code>split_v</code></td></tr>
+          <tr><td>Prefix <span class="kbd">"</span></td><td>Split horizontally</td><td><code>split_h</code></td></tr>
+          <tr><td>Prefix <span class="kbd">o</span></td><td>Next pane</td><td><code>pane_next</code></td></tr>
+          <tr><td>Prefix <span class="kbd">h</span> / <span class="kbd">j</span> / <span class="kbd">k</span> / <span class="kbd">l</span></td><td>Focus pane</td><td><code>pane_left</code> …</td></tr>
+          <tr><td><span class="kbd">Ctrl-h</span> / <span class="kbd">j</span> / <span class="kbd">k</span> / <span class="kbd">l</span></td><td>Focus pane (no prefix)</td><td>same</td></tr>
+          <tr><td>Prefix <span class="kbd">z</span></td><td>Zoom pane</td><td><code>zoom</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="windows">Windows (tabs)</h3>
+      <table>
+        <thead>
+          <tr><th>Chord</th><th>Action</th><th>Id</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Prefix <span class="kbd">c</span></td><td>New window</td><td><code>new_window</code></td></tr>
+          <tr><td>Prefix <span class="kbd">n</span> or Prefix <span class="kbd">Tab</span></td><td>Next window</td><td><code>next_window</code></td></tr>
+          <tr><td>Prefix <span class="kbd">p</span></td><td>Previous window</td><td><code>prev_window</code></td></tr>
+          <tr><td>Prefix <span class="kbd">0</span>–<span class="kbd">9</span></td><td>Go to window by number</td><td><code>goto_window</code></td></tr>
+          <tr><td>Prefix <span class="kbd">d</span></td><td>Detach session</td><td><code>detach</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-L</span></td><td>Layout picker</td><td><code>layout_picker</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-O</span></td><td>Session overview</td><td><code>overview</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="app-chords">Application</h3>
+      <table>
+        <thead>
+          <tr><th>Chord</th><th>Action</th><th>Id</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="kbd">Ctrl-Shift-P</span></td><td>Command palette</td><td><code>command_palette</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-R</span></td><td>Reload config</td><td><code>reload_config</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-T</span></td><td>Cycle theme</td><td><code>theme_cycle</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-F</span></td><td>Search</td><td><code>search</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-C</span></td><td>Copy selection</td><td><code>copy</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-V</span></td><td>Paste</td><td><code>paste</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-,</span></td><td>Settings</td><td><code>settings</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-/</span> or Prefix <span class="kbd">?</span></td><td>Shortcuts overlay</td><td><code>shortcuts</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-+</span></td><td>Increase font</td><td><code>font_increase</code></td></tr>
+          <tr><td><span class="kbd">Ctrl--</span></td><td>Decrease font</td><td><code>font_decrease</code></td></tr>
+          <tr><td><span class="kbd">Ctrl-Shift-Q</span></td><td>Quit</td><td><code>quit</code></td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>No default chord:</strong> <code>status_cycle</code> and <code>demo</code> — run them from the command palette (or bind them).
+        <strong>Reserved:</strong> Prefix <span class="kbd">[</span> is bound to <code>copy_mode</code> but currently has no runtime handler.
+      </div>
+    </section>
+
+    <section id="overview" aria-labelledby="overview-title">
+      <p class="eyebrow">03 — Overview</p>
+      <h2 id="overview-title">Two-level session overview</h2>
+      <p class="section-lead">Action <code>overview</code>, default <span class="kbd">Ctrl-Shift-O</span>. Live cell previews reuse each pane’s existing screen — no extra PTYs or screenshots.</p>
+      <ul>
+        <li><strong>Tabs:</strong> one card per open tab with title, pane count, attention badge, and a composite preview of that tab’s pane layout.</li>
+        <li><strong>Panes:</strong> selecting a multi-pane tab drills in. Each card shows title/cwd, a foreground-process indicator, and that pane’s live terminal.</li>
+        <li>A single-pane tab focuses immediately on Enter or click (no drill-down).</li>
+      </ul>
+      <table>
+        <thead>
+          <tr><th>Input</th><th>Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Arrows or <span class="kbd">h</span> <span class="kbd">j</span> <span class="kbd">k</span> <span class="kbd">l</span></td><td>Move the selection in the grid</td></tr>
+          <tr><td>Enter or card click</td><td>Drill into panes, or focus the pane and close the overlay</td></tr>
+          <tr><td>Esc</td><td>Panes → tabs, then close</td></tr>
+          <tr><td>Backspace or <span class="kbd">u</span></td><td>Back to tabs</td></tr>
+          <tr><td><span class="kbd">×</span>, Delete, or <span class="kbd">x</span></td><td>Close the selected tab or pane</td></tr>
+          <tr><td>Backdrop click</td><td>Close the overlay</td></tr>
+        </tbody>
+      </table>
+      <p>Closing a tab or pane that still has a foreground process opens the same confirmation dialog as quit. Cancel is the default. Closing the last pane of a tab closes the tab. The session always keeps at least one tab.</p>
+      <p class="note">Overview, shortcuts, and the layout picker are mutually exclusive. The quit dialog stays topmost.</p>
+    </section>
+
+    <section id="tabs" aria-labelledby="tabs-title">
+      <p class="eyebrow">04 — Tabs</p>
+      <h2 id="tabs-title">Numbered tabs and mouse</h2>
+      <p>New windows take the smallest unused positive number (1, 2, 3…). Closing tab 2 while 1 and 3 exist leaves a gap; the next new tab reuses 2 and inserts in numeric order — not at the end.</p>
+      <p>Prefix <span class="kbd">0</span>–<span class="kbd">9</span> jumps to the tab whose number (or name) matches the digit, the same label shown on the tab.</p>
+      <h3 id="mouse-tabs">Mouse on the tab bar</h3>
+      <ul>
+        <li>Left-click a tab to select it (clears its attention badge).</li>
+        <li>Click <span class="kbd">×</span> on a tab to close it.</li>
+        <li>Click <span class="kbd">+</span> to create a window.</li>
+        <li>Middle-click a tab to close it (browser-style). Middle-click in a pane pastes the primary selection.</li>
+      </ul>
+      <h3 id="attention">Inactive-tab attention</h3>
+      <p>An inactive tab gets a pulsing badge when any of its panes produce output, BEL, or OSC 133 command-finished. Selecting the tab clears the badge.</p>
+    </section>
+
+    <section id="overlays" aria-labelledby="overlays-title">
+      <p class="eyebrow">05 — Overlays</p>
+      <h2 id="overlays-title">Palette, search, shortcuts, layouts</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Command palette</h3>
+          <p><span class="kbd">Ctrl-Shift-P</span>. Type to filter every action by name/label, then Enter. Also how you run unbound actions such as <code>status_cycle</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Shortcuts overlay</h3>
+          <p><span class="kbd">Ctrl-Shift-/</span> or Prefix <span class="kbd">?</span>. Grouped catalog of the current keymap. Click the backdrop or Esc to close.</p>
+        </div>
+        <div class="card">
+          <h3>Search</h3>
+          <p><span class="kbd">Ctrl-Shift-F</span>. Status-bar find over scrollback + screen, case-insensitive. All matches highlight; the current one is gold. Enter / F3 / ↓ next; Shift+Enter / Shift+F3 / ↑ previous; Esc closes.</p>
+        </div>
+        <div class="card">
+          <h3>Layout picker</h3>
+          <p><span class="kbd">Ctrl-Shift-L</span>. Enter applies, <span class="kbd">s</span> saves the current session, Del deletes a <em>user</em> layout, Esc closes. Apply replaces all tabs/panes with fresh shells (geometry only).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings" aria-labelledby="settings-title">
+      <p class="eyebrow">06 — Settings</p>
+      <h2 id="settings-title">Preferences window</h2>
+      <p><span class="kbd">Ctrl-Shift-,</span> opens a separate window with three tabs:</p>
+      <ul>
+        <li><strong>Appearance</strong> — theme, status bar, default layout, opacity, font family (monospace dropdown from Fontconfig), font size 8–48 px.</li>
+        <li><strong>Terminal</strong> — cursor style, scrollback, enabled plugin list (read-only here; edit <code>config.plugins</code> to change).</li>
+        <li><strong>Shortcuts</strong> — leader and per-action rebinding. Saves into <code>config.keys</code>.</li>
+      </ul>
+      <p>Apply updates the live session; Save writes <code>~/.config/traash/config.lua</code>.</p>
+    </section>
+
+    <section id="mouse" aria-labelledby="mouse-title">
+      <p class="eyebrow">07 — Pointer</p>
+      <h2 id="mouse-title">Context menu and selection</h2>
+      <p>Right-click (when no overlay is open) shows: Copy, Paste, Split Right, Split Down, Preferences…</p>
+      <p>Left-click focuses the pane under the cursor. Double-click selects a word (stops at punctuation and path separators). Drag selects cells. Copy uses the clipboard; middle-click pastes primary.</p>
+    </section>
+
+    <section id="font" aria-labelledby="font-title">
+      <p class="eyebrow">08 — Font &amp; resize</p>
+      <h2 id="font-title">Zoom, toast, and crisp resize</h2>
+      <ul>
+        <li>Live font size is 8–48 px before content-scale. <span class="kbd">Ctrl-Shift-+</span> / <span class="kbd">Ctrl--</span> (and the matching numpad keys) step one pixel.</li>
+        <li>A centered toast shows <code>Font size  N px</code>.</li>
+        <li>Layout-aware <code>+</code> / <code>-</code> on the equal/minus keys still work when Shift is involved.</li>
+        <li>Interactive window resize uses a fast path (no overview thumbnails, deferred PTY resize) so glyphs stay crisp; PTY size flushes after the drag settles.</li>
+      </ul>
+      <p><strong>Numpad Enter</strong> is treated as regular Enter in the shell and in every overlay (palette, search, overview, quit, layouts).</p>
+    </section>
+
+    <section id="quit" aria-labelledby="quit-title">
+      <p class="eyebrow">09 — Safety</p>
+      <h2 id="quit-title">Process-aware quit and close</h2>
+      <p><span class="kbd">Ctrl-Shift-Q</span> quits. If any pane still has a foreground process (not just the idle shell), a dialog lists them. <strong>Cancel</strong> is focused by default. Enter confirms the focused button; <span class="kbd">y</span> / <span class="kbd">n</span> also work. The same dialog is reused when overview (or a last-pane close) would kill a running process.</p>
+    </section>
+
+    <section id="notify" aria-labelledby="notify-title">
+      <p class="eyebrow">10 — Notifications</p>
+      <h2 id="notify-title">Desktop notifications</h2>
+      <ul>
+        <li><code>traash.notify</code> logs and shows a desktop notification. Linux: <code>notify-send</code> (app name <code>traa.sh</code>, 3.5s, transient, replaces the previous traa.sh notification). macOS: Notification Center via <code>osascript</code>.</li>
+        <li>The <code>on_bell</code> plugin hook fires only while the <em>window is unfocused</em>. Focused BEL stays in-terminal.</li>
+        <li>The default <code>notify-on-bell</code> plugin further rate-limits to one notification per 15 seconds.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap inner">
+      <div style="display:flex;align-items:center;gap:0.65rem;">
+        <img src="assets/traash.svg" alt="" width="28" height="28" style="border-radius:7px;" />
+        <span>traa.sh docs</span>
+      </div>
+      <div>
+        <a href="getting-started.html">Getting started</a>
+        ·
+        <a href="plugins.html">Plugins</a>
+        ·
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
