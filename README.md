@@ -79,7 +79,7 @@ Local preview: `make docs-preview` (http://localhost:8080/ by default; `DOCS_POR
 
 ## Releases
 
-Push a version tag to build Linux (`x86_64`) and macOS (`arm64` + Intel) archives and attach them to a GitHub Release:
+Push a version tag to build Linux (`x86_64`) and macOS (`arm64`) archives and attach them to a GitHub Release:
 
 ```bash
 git tag v0.1.0

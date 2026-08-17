@@ -18,8 +18,6 @@ jobs:
             slug: linux-x86_64
           - os: macos-latest
             slug: macos-arm64
-          - os: macos-13
-            slug: macos-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
