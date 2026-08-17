@@ -32,8 +32,61 @@ static void add_item(TraashQuitConfirm *q, const char *tab, const char *title,
   TraashQuitConfirmItem *it = &q->items[q->count++];
   snprintf(it->tab, sizeof(it->tab), "%s", tab ? tab : "?");
   snprintf(it->title, sizeof(it->title), "%s", title && title[0] ? title : "shell");
-  snprintf(it->process, sizeof(it->process), "%s", process ? process : "process");
+  traash_quit_confirm_format_process(process, it->process, sizeof(it->process));
   it->pid = pid;
+}
+
+void traash_quit_confirm_format_process(const char *raw, char *out, size_t n) {
+  if (!out || n < 2) {
+    return;
+  }
+  out[0] = 0;
+  if (!raw || !raw[0]) {
+    snprintf(out, n, "process");
+    return;
+  }
+  size_t o = 0;
+  const char *p = raw;
+  int first = 1;
+  while (*p && o + 1 < n) {
+    while (*p == ' ' || *p == '\t') {
+      p++;
+    }
+    if (!*p) {
+      break;
+    }
+    const char *start = p;
+    while (*p && *p != ' ' && *p != '\t') {
+      p++;
+    }
+    const char *tok = start;
+    for (const char *s = start; s < p; s++) {
+      if (*s == '/') {
+        tok = s + 1;
+      }
+    }
+    size_t nlen = (size_t)(p - tok);
+    if (nlen == 0) {
+      tok = start;
+      nlen = (size_t)(p - start);
+    }
+    if (!first) {
+      out[o++] = ' ';
+      if (o + 1 >= n) {
+        break;
+      }
+    }
+    first = 0;
+    if (o + nlen >= n) {
+      nlen = n - o - 1;
+    }
+    memcpy(out + o, tok, nlen);
+    o += nlen;
+    out[o] = 0;
+  }
+  if (!out[0]) {
+    snprintf(out, n, "%s", raw);
+  }
 }
 
 int traash_quit_confirm_scan(TraashQuitConfirm *q, const TraashMuxServer *mux) {

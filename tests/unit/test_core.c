@@ -9,6 +9,7 @@
 #include "input/keymap.h"
 #include "input/actions.h"
 #include "ui/overview_overlay.h"
+#include "ui/quit_confirm.h"
 
 static void test_utf8(void) {
   uint32_t cp = 0;
@@ -337,6 +338,19 @@ static void test_vt_charset_and_dsr(void) {
   traash_screen_free(&s);
 }
 
+static void test_quit_confirm_format(void) {
+  char out[160];
+  traash_quit_confirm_format_process(
+      "/home/mathias/.hermes/hermes-agent/venv/bin/python3 "
+      "/home/mathias/.hermes/hermes-agent/venv/bin/hermes-ros.rd x402",
+      out, sizeof(out));
+  TRAASH_CHECK_STREQ(out, "python3 hermes-ros.rd x402");
+  traash_quit_confirm_format_process("sleep 30", out, sizeof(out));
+  TRAASH_CHECK_STREQ(out, "sleep 30");
+  traash_quit_confirm_format_process(NULL, out, sizeof(out));
+  TRAASH_CHECK_STREQ(out, "process");
+}
+
 int main(void) {
   test_utf8();
   test_ring();
@@ -346,6 +360,7 @@ int main(void) {
   test_ipc();
   test_mux_tree();
   test_overview_overlay();
+  test_quit_confirm_format();
   test_keymap();
   test_selection_word();
   test_screen_search();

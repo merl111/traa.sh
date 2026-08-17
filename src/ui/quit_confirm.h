@@ -3,6 +3,8 @@
 
 #include "mux/server.h"
 
+#include <stddef.h>
+
 #define TRAASH_QUIT_CONFIRM_MAX 32
 
 typedef enum {
@@ -41,6 +43,7 @@ typedef struct {
 } TraashQuitConfirmGeom;
 
 void traash_quit_confirm_init(TraashQuitConfirm *q);
+void traash_quit_confirm_format_process(const char *raw, char *out, size_t n);
 void traash_quit_confirm_close(TraashQuitConfirm *q);
 /* Scan mux for panes with a foreground process; opens dialog if any. Returns count. */
 int traash_quit_confirm_scan(TraashQuitConfirm *q, const TraashMuxServer *mux);

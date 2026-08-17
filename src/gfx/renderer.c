@@ -427,6 +427,45 @@ static float measure_text(TraashRenderer *r, const char *s) {
   return w;
 }
 
+static void draw_text_fit(TraashRenderer *r, Vtx *text, int *nt, int capt, float x, float y,
+                         const char *s, uint32_t color, float max_w) {
+  if (!s || max_w <= 0.0f) {
+    return;
+  }
+  if (measure_text(r, s) <= max_w) {
+    draw_text(r, text, nt, capt, x, y, s, color);
+    return;
+  }
+  float ell_w = measure_text(r, "…");
+  if (ell_w >= max_w) {
+    return;
+  }
+  float cx = floorf(x + 0.5f);
+  float base_y = floorf(y + 0.5f);
+  float stop = x + max_w - ell_w;
+  for (const char *p = s; *p;) {
+    uint32_t cp = 0;
+    const char *next = utf8_next(p, &cp);
+    if (!cp) {
+      break;
+    }
+    TraashGlyph *g = traash_font_glyph(&r->font, cp);
+    float adv = (g && g->advance > 0) ? (float)g->advance : (float)r->font.cell_w;
+    if (cx + adv > stop) {
+      break;
+    }
+    if (g) {
+      float gx = cx + (float)g->bearing_x;
+      float gy = base_y - (float)g->bearing_y + (float)r->font.ascender;
+      push_quad(text, nt, capt, gx, gy, (float)g->w, (float)g->h, g->u0, g->v0, g->u1, g->v1,
+                color, 1.0f);
+    }
+    cx += adv;
+    p = next;
+  }
+  draw_text(r, text, nt, capt, cx, y, "…", color);
+}
+
 static void draw_screen_preview(TraashRenderer *r, const TraashScreen *screen,
                                 const TraashTheme *theme, float dst_x, float dst_y, float dst_w,
                                 float dst_h, Vtx *solid, int *ns, Vtx *text, int *nt, int cap) {
@@ -1466,12 +1505,12 @@ void traash_renderer_draw_ex(TraashRenderer *r, TraashSession *session, const Tr
                       qg.row_h - 4.0f * scale, 6.0f * scale, 0x2a2a32, 1.0f);
       char line1[96];
       snprintf(line1, sizeof(line1), "Tab %s", it->tab);
-      draw_text(r, text, &nqt, cap, qg.x + qg.pad + 12.0f * scale,
-                ry + 4.0f * scale, line1, 0x33d17a);
-      char line2[192];
-      snprintf(line2, sizeof(line2), "%.140s", it->process);
-      draw_text(r, text, &nqt, cap, qg.x + qg.pad + 12.0f * scale,
-                ry + 4.0f * scale + (float)r->font.cell_h + 2.0f * scale, line2, 0xe8e8ec);
+      float text_x = qg.x + qg.pad + 12.0f * scale;
+      float text_max = qg.w - qg.pad * 2.0f - 24.0f * scale;
+      draw_text_fit(r, text, &nqt, cap, text_x, ry + 4.0f * scale, line1, 0x33d17a, text_max);
+      draw_text_fit(r, text, &nqt, cap, text_x,
+                   ry + 4.0f * scale + (float)r->font.cell_h + 2.0f * scale, it->process,
+                   0xe8e8ec, text_max);
     }
 
     int cancel_on = quit_confirm->focus == 0;

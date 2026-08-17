@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-add_executable(test_core unit/test_core.c ${CMAKE_SOURCE_DIR}/src/ui/overview_overlay.c)
+add_executable(test_core unit/test_core.c
+  ${CMAKE_SOURCE_DIR}/src/ui/overview_overlay.c
+  ${CMAKE_SOURCE_DIR}/src/ui/quit_confirm.c)
 target_include_directories(test_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/unit
   ${CMAKE_SOURCE_DIR}/src
