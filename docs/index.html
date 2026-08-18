@@ -43,9 +43,9 @@
           GUI, tmux-style mux, Lua themes, and plugins when you need them.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="agents.html">Agent API</a>
+          <a class="btn btn-primary" href="#download">Download v0.2.0</a>
+          <a class="btn btn-ghost" href="agents.html">Agent API</a>
           <a class="btn btn-ghost" href="getting-started.html">Get started</a>
-          <a class="btn btn-ghost" href="llms.txt">llms.txt</a>
         </div>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -55,6 +55,35 @@
   </header>
 
   <main class="wrap">
+    <section id="download" aria-labelledby="download-title">
+      <p class="eyebrow">Download</p>
+      <div class="release-banner">
+        <div class="release-banner-head">
+          <span class="release-badge">Latest release</span>
+          <h2 class="release-version" id="download-title">traa.sh v0.2.0</h2>
+        </div>
+        <p>Relocatable tarballs — extract and run <code>./bin/traash</code>. Includes the agent CLI, encrypted mux sessions, headless server, and bundled Lua assets. No system install required.</p>
+        <div class="download-grid">
+          <a class="download-card" href="https://github.com/merl111/traa.sh/releases/download/v0.2.0/traash-0.2.0-linux-x86_64.tar.gz">
+            <strong>Linux x86_64</strong>
+            <span>glibc · OpenGL · Wayland/X11</span>
+            <span class="dl-arrow">Download .tar.gz →</span>
+          </a>
+          <a class="download-card" href="https://github.com/merl111/traa.sh/releases/download/v0.2.0/traash-0.2.0-macos-arm64.tar.gz">
+            <strong>macOS arm64</strong>
+            <span>Apple Silicon · macOS 11+</span>
+            <span class="dl-arrow">Download .tar.gz →</span>
+          </a>
+        </div>
+        <p class="release-foot">Also on <a href="https://github.com/merl111/traa.sh/releases/latest">GitHub Releases</a> · prefer to compile? <a href="getting-started.html#build">Build from source</a></p>
+      </div>
+<pre><span class="c"># quick start after download</span>
+tar xzf traash-0.2.0-*.tar.gz
+cd traash-0.2.0-*
+./bin/traash --server --create dev
+./bin/traash agent state dev</pre>
+    </section>
+
     <section id="agents" aria-labelledby="agents-hero-title">
       <p class="eyebrow">For automation</p>
       <h2 id="agents-hero-title">Built for agents</h2>
@@ -82,6 +111,7 @@ traash agent subscribe dev --emit-output</pre>
       <p class="eyebrow">Map</p>
       <h2 id="map-title">Guides</h2>
       <div class="toc">
+        <a href="#download">Download<span>v0.2.0 Linux + macOS tarballs</span></a>
         <a href="agents.html">Agent API<span>traash agent, JSON mux, events, shell-init</span></a>
         <a href="getting-started.html">Getting started<span>Build, install, CLI, encrypted sessions</span></a>
         <a href="keyboard-ui.html">Keyboard &amp; UI<span>Keys, overview, settings, overlays</span></a>

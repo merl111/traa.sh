@@ -95,11 +95,11 @@ Local preview: `make docs-preview` (http://localhost:8080/ by default; `DOCS_POR
 
 ## Releases
 
-Push a version tag to build Linux (`x86_64`) and macOS (`arm64`) archives and attach them to a GitHub Release:
+Push a version tag to build Linux (`x86_64`) and macOS (`arm64`) archives and attach them to a GitHub Release. **Latest: [v0.2.0](https://github.com/merl111/traa.sh/releases/tag/v0.2.0)** — also on [traa.sh](https://traa.sh/#download).
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 Each tarball is relocatable (`bin/traash`, bundled `lib/`, `share/traash/lua`). Run `./bin/traash` from the extracted directory.
