@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent API — traa.sh</title>
+  <meta name="description" content="traa.sh agent-compatible terminal: JSON mux API, traash agent CLI, wait-for-idle, events, shell integration, encrypted read-only roles." />
+  <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Documentation">
+    <div class="inner">
+      <a class="brand-lockup" href="index.html">
+        <img src="assets/traash.svg" alt="" width="36" height="36" />
+        <span>traa.sh</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Docs</a>
+        <a href="agents.html" class="active">Agents</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="keyboard-ui.html">Keyboard &amp; UI</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero page-hero wrap">
+    <p class="eyebrow">Primary guide</p>
+    <h1>Agent-compatible terminal API</h1>
+    <p class="lead">traa.sh is built for automation agents and scripts: query terminal state as JSON, send input, wait for shell idle (OSC&nbsp;133), and subscribe to events — all over the existing mux socket, with no GUI.</p>
+  </header>
+
+  <main class="wrap">
+    <section id="why">
+      <p class="eyebrow">Why traa.sh for agents</p>
+      <h2>Structured state, not ANSI soup</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Query</h3>
+          <p>Pane text (UTF-8 + scrollback), cwd, title, cursor, and a <code>busy</code> flag — one JSON response via <code>traash agent state</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Act &amp; wait</h3>
+          <p>Send keystrokes with <code>agent send</code>, then block on <code>agent wait</code> until the shell emits OSC&nbsp;133;D — no polling the screen grid.</p>
+        </div>
+        <div class="card">
+          <h3>Subscribe</h3>
+          <p>JSONL events for command finished, cwd/title changes, layout updates, and optional raw PTY output.</p>
+        </div>
+        <div class="card">
+          <h3>Secure attach</h3>
+          <p>Encrypted sessions support read-only agents (observe only) vs write agents (send + wait). Same mux socket as the GUI.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="bootstrap">
+      <p class="eyebrow">01 — Bootstrap</p>
+      <h2>Start the mux host</h2>
+<pre>traash --server --create dev
+traash agent state dev          # JSON on stdout
+</pre>
+      <p>Socket: <code>$XDG_RUNTIME_DIR/traash/mux.sock</code>. Optional TCP: <code>traash --server --bind 127.0.0.1:9477</code>.</p>
+    </section>
+
+    <section id="shell">
+      <p class="eyebrow">02 — Shell integration</p>
+      <h2>OSC 133 + OSC 7</h2>
+      <p>Panes set <code>TRAASH_SHELL_INTEGRATION=1</code> for child shells. Source the snippet once in your shell rc:</p>
+<pre>eval "$(traash shell-init bash)"   # or zsh / fish
+</pre>
+      <p>Snippets are installed under <code>share/traash/shell/</code>. Without shell integration, <code>traash agent wait</code> cannot detect command completion.</p>
+    </section>
+
+    <section id="cli">
+      <p class="eyebrow">03 — CLI</p>
+      <h2><code>traash agent</code></h2>
+      <table>
+        <thead><tr><th>Subcommand</th><th>Description</th><th>Exit</th></tr></thead>
+        <tbody>
+          <tr><td><code>state SESSION</code></td><td>GET_STATE → print STATE JSON</td><td>0 ok, 1 error</td></tr>
+          <tr><td><code>send SESSION --pane N --literal BYTES</code></td><td>Write to pane PTY</td><td>0 ok, 3 denied</td></tr>
+          <tr><td><code>wait SESSION --pane N [--timeout MS]</code></td><td>Wait for OSC 133;D</td><td>0 idle, 2 timeout, 3 denied</td></tr>
+          <tr><td><code>subscribe SESSION [--emit-output]</code></td><td>JSONL EVENT stream until Ctrl-C</td><td>0</td></tr>
+          <tr><td><code>run-action SESSION -- ACTION</code></td><td>Mux action (split-h, new-window, …)</td><td>0 ok, 3 denied</td></tr>
+        </tbody>
+      </table>
+      <p>Shared flags: <code>--read-only</code>, <code>--password-fd</code>, <code>--host</code>, <code>--port</code>.</p>
+    </section>
+
+    <section id="protocol">
+      <p class="eyebrow">04 — Wire protocol</p>
+      <h2>JSON message types</h2>
+      <p>Same length-prefixed frame envelope as the GUI mux protocol. Payloads are UTF-8 JSON unless noted.</p>
+      <table>
+        <thead><tr><th>Type</th><th>Name</th><th>Payload</th></tr></thead>
+        <tbody>
+          <tr><td>16</td><td>GET_STATE</td><td><code>{"v":1,"scrollback":200,"pane_id":0}</code></td></tr>
+          <tr><td>17</td><td>STATE</td><td>session + panes (text, cwd, cursor, busy)</td></tr>
+          <tr><td>18</td><td>WAIT_IDLE</td><td><code>{"pane_id":1,"timeout_ms":30000}</code> (write role)</td></tr>
+          <tr><td>19</td><td>IDLE</td><td><code>{"pane_id":1}</code></td></tr>
+          <tr><td>20</td><td>WAIT_TIMEOUT</td><td><code>{"pane_id":1}</code></td></tr>
+          <tr><td>21</td><td>SUBSCRIBE</td><td><code>{"emit_output":false}</code></td></tr>
+          <tr><td>22</td><td>UNSUBSCRIBE</td><td>empty</td></tr>
+          <tr><td>23</td><td>EVENT</td><td>JSON event (see below)</td></tr>
+        </tbody>
+      </table>
+      <p>Read-only clients may use GET_STATE and SUBSCRIBE. INPUT, WAIT_IDLE, and mutating actions return <code>ACTION_DENIED</code> (type 8).</p>
+    </section>
+
+    <section id="events">
+      <p class="eyebrow">05 — Events</p>
+      <h2>SUBSCRIBE stream</h2>
+      <ul>
+        <li><code>command_finished</code> — OSC 133;D</li>
+        <li><code>cwd_changed</code> — OSC 7</li>
+        <li><code>title_changed</code> — OSC 0/2</li>
+        <li><code>layout_changed</code> — after mux layout mutation</li>
+        <li><code>pane_output</code> — raw PTY (base64), rate-limited 50&nbsp;KB/s/pane when <code>emit_output: true</code></li>
+      </ul>
+    </section>
+
+    <section id="example">
+      <p class="eyebrow">06 — Example</p>
+      <h2>Wait loop (bash)</h2>
+<pre>traash agent send dev --pane 1 --literal $'ls -la\n'
+traash agent wait dev --pane 1 --timeout 10000
+traash agent state dev | jq '.panes[0].text'
+</pre>
+    </section>
+
+    <section id="security">
+      <p class="eyebrow">07 — Security</p>
+      <h2>Roles and transport</h2>
+      <p>Encrypted sessions use the same dual-password model as GUI attach. TCP has no TLS in v1 — use Unix socket or a trusted LAN. Passwords belong in tty or <code>--password-fd</code>, never argv.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap inner">
+      <div style="display:flex;align-items:center;gap:0.65rem;">
+        <img src="assets/traash.svg" alt="" width="28" height="28" style="border-radius:7px;" />
+        <span>traa.sh docs</span>
+      </div>
+      <div>
+        <a href="getting-started.html">Getting started</a>
+        ·
+        <a href="llms.txt">llms.txt</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

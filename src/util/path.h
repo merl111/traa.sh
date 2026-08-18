@@ -9,6 +9,9 @@ int traash_config_dir(char *buf, size_t n);
 /* Resolve runtime dir for mux socket. */
 int traash_runtime_dir(char *buf, size_t n);
 
+/* Resolve data dir for encrypted sessions (~/.local/share/traash). */
+int traash_data_dir(char *buf, size_t n);
+
 /* Find bundled lua directory (env TRAASH_LUA_PATH, then next to binary, then source). */
 int traash_lua_dir(char *buf, size_t n);
 

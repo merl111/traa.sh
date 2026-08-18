@@ -1,8 +1,34 @@
 # traa.sh developer docs (agent-oriented)
 
+> **Start here for automation:** agents.html — JSON mux API, `traash agent` CLI, events, shell-init.
 > Site: docs/index.html (GitHub Pages). Product: https://traa.sh
-> Guides: getting-started.html, keyboard-ui.html, plugins.html
-> Terminal emulator with Lua config, themes, saved layouts, status bars, plugins, and a two-level session overview.
+> Guides: agents.html, getting-started.html, keyboard-ui.html, plugins.html
+> Agent-compatible GPU terminal: headless JSON API + optional OpenGL GUI, Lua config, themes, layouts, plugins.
+
+## Agent API (terminal automation)
+
+Headless automation over the mux socket — no GUI, no ANSI parsing.
+
+- **Host:** `traash --server [--bind ADDR:PORT] [--create NAME]`
+- **CLI:** `traash agent state|send|wait|subscribe|run-action SESSION …`
+- **Shell:** `traash shell-init bash|zsh|fish` → OSC 133 (prompt/command/done) + OSC 7 (cwd). Child shells get `TRAASH_SHELL_INTEGRATION=1`.
+- **Socket:** `$XDG_RUNTIME_DIR/traash/mux.sock` (or `~/.traash/mux.sock`)
+- **JSON types (mux frame payload):** 16 GET_STATE, 17 STATE, 18 WAIT_IDLE, 19 IDLE, 20 WAIT_TIMEOUT, 21 SUBSCRIBE, 22 UNSUBSCRIBE, 23 EVENT
+- **STATE JSON (v1):** session, window, panes[{id, title, cwd, cols, rows, cursor, busy, text}]
+- **Events:** command_finished, cwd_changed, title_changed, layout_changed, pane_output (optional, base64, 50KB/s/pane cap)
+- **Roles:** read-only attach → GET_STATE/SUBSCRIBE OK; INPUT/WAIT_IDLE/mutating actions → ACTION_DENIED (type 8)
+- **Exit codes:** 0 ok, 1 error, 2 wait timeout, 3 action denied
+- **Flags:** `--read-only`, `--password-fd`, `--host`, `--port` (same as GUI attach)
+- **Encrypted sessions:** same dual-password model; agents use tty or `--password-fd`, never argv
+- **Full reference:** docs/agents.html
+
+```bash
+traash --server --create dev &
+traash agent state dev
+traash agent send dev --pane 1 --literal $'make\n'
+traash agent wait dev --pane 1
+traash agent subscribe dev
+```
 
 ## Paths
 
@@ -14,6 +40,7 @@
 - Plugins: `lua/plugins/examples/<id>/init.lua` (enabled via `config.plugins`)
 - Lua root override: env `TRAASH_LUA_PATH`
 - Mux socket: `$XDG_RUNTIME_DIR/traash/mux.sock` or `~/.traash/mux.sock`
+- Encrypted snapshots: `$XDG_DATA_HOME/traash/sessions/<name>.tsn` or `~/.local/share/traash/sessions/<name>.tsn`
 
 ## Config fields
 
@@ -170,13 +197,30 @@ Path: `lua/plugins/examples/<id>/init.lua` only. Max 16 ids. No user plugin dir.
 Default-enabled: git-status, cwd-short, battery, ssh-hint, notify-on-bell, autoreload-theme, session-picker, copy-enhancements.
 Optional: hints, welcome.
 
+## Encrypted sessions
+
+- Storage: `$XDG_DATA_HOME/traash/sessions/<name>.tsn` (0600)
+- Two passwords: write (read+write) and read-only (view only)
+- Crypto: random DEK, AES-256-GCM payload, PBKDF2-HMAC-SHA256 wraps per password
+- Host: `traash --server [--bind ADDR:PORT]` runs persistent mux (Unix socket + optional TCP)
+- Client: if mux socket is up, GUI `--attach` connects as client; else GUI hosts locally
+- Flags: `--encrypt` (with `--create`), `--read-only`, `--host`, `--port`, `--password-fd`
+- Passwords: tty prompt only (never argv). `--read-only` forces observer even with write password
+- TCP v1: no TLS; password sent in AUTH frame — trusted LAN only
+- Read-only client: server rejects INPUT and mutating ACTION frames; status bar shows READ-ONLY badge; copy/scroll/search/local overlays OK
+- `list-sessions` marks encrypted names with ` *`
+- Shell processes are not restored after host restart; screen/layout/scrollback snapshot is
+
 ## CLI
 
 ```
+traash agent state|send|wait|subscribe|run-action ...
+traash shell-init bash|zsh|fish
 traash --demo [--auto]
-traash --server
+traash --server [--bind ADDR:PORT]
 traash --list-sessions
-traash --attach NAME
-traash --create NAME
+traash --attach NAME [--read-only] [--host H --port P]
+traash --create NAME [--encrypt]
+traash --password-fd FD
 traash --headless-test
 ```

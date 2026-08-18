@@ -35,6 +35,7 @@ int traash_pty_open(TraashPty *pty, int cols, int rows, const char *shell,
   if (pid == 0) {
     setenv("TERM", "xterm-256color", 1);
     setenv("COLORTERM", "truecolor", 1);
+    setenv("TRAASH_SHELL_INTEGRATION", "1", 1);
     const char *sh = shell ? shell : getenv("SHELL");
     if (!sh || !sh[0]) {
       sh = "/bin/sh";

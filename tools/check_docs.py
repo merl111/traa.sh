@@ -75,6 +75,7 @@ def check() -> int:
     errors: list[str] = []
     expected = [
         DOCS / "index.html",
+        DOCS / "agents.html",
         DOCS / "getting-started.html",
         DOCS / "keyboard-ui.html",
         DOCS / "plugins.html",

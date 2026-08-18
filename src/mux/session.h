@@ -10,6 +10,12 @@ typedef struct TraashSession {
   TraashWindow *active;
   int next_window_id;
   int next_pane_id;
+  int encrypted;
+  uint8_t dek[32];
+  int dek_valid;
+  int pw_cached;
+  char write_pw[256];
+  char read_pw[256];
   struct TraashSession *next;
 } TraashSession;
 

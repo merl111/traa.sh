@@ -101,6 +101,24 @@ int traash_runtime_dir(char *buf, size_t n) {
   return 0;
 }
 
+int traash_data_dir(char *buf, size_t n) {
+  const char *xdg = getenv("XDG_DATA_HOME");
+  if (xdg && xdg[0]) {
+    snprintf(buf, n, "%s/traash", xdg);
+  } else {
+    const char *home = getenv("HOME");
+    if (!home) {
+      return -1;
+    }
+    snprintf(buf, n, "%s/.local/share/traash", home);
+  }
+  ensure_dir(buf);
+  char sessions[640];
+  snprintf(sessions, sizeof(sessions), "%s/sessions", buf);
+  ensure_dir(sessions);
+  return 0;
+}
+
 int traash_lua_dir(char *buf, size_t n) {
   const char *env = getenv("TRAASH_LUA_PATH");
   if (env && env[0]) {

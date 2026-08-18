@@ -6,6 +6,9 @@
 #include "term/vt.h"
 #include "mux/ipc.h"
 #include "mux/session.h"
+#include "mux/snapshot.h"
+#include "crypto/secret.h"
+#include "mux/protocol.h"
 #include "input/keymap.h"
 #include "input/actions.h"
 #include "ui/overview_overlay.h"
@@ -351,6 +354,60 @@ static void test_quit_confirm_format(void) {
   TRAASH_CHECK_STREQ(out, "process");
 }
 
+static void test_crypto_dual_password(void) {
+  const uint8_t plain[] = "hello encrypted world";
+  uint8_t *blob = NULL;
+  size_t blob_len = 0;
+  TRAASH_CHECK_EQ(traash_secret_encrypt(plain, sizeof(plain) - 1, "write-secret", "read-secret",
+                                        &blob, &blob_len),
+                  0);
+  uint8_t *out = NULL;
+  size_t out_len = 0;
+  int role = 0;
+  TRAASH_CHECK_EQ(traash_secret_decrypt(blob, blob_len, "write-secret", 0, &out, &out_len, &role),
+                  0);
+  TRAASH_CHECK_EQ(role, TRAASH_ROLE_WRITE);
+  TRAASH_CHECK_EQ(out_len, sizeof(plain) - 1);
+  TRAASH_CHECK(memcmp(out, plain, out_len) == 0);
+  traash_secret_free(out);
+  out = NULL;
+  TRAASH_CHECK_EQ(traash_secret_decrypt(blob, blob_len, "read-secret", 0, &out, &out_len, &role),
+                  0);
+  TRAASH_CHECK_EQ(role, TRAASH_ROLE_READ);
+  traash_secret_free(out);
+  out = NULL;
+  TRAASH_CHECK(traash_secret_decrypt(blob, blob_len, "wrong", 0, &out, &out_len, &role) != 0);
+  traash_secret_free(blob);
+}
+
+static void test_snapshot_roundtrip(void) {
+  TraashSession *s = traash_session_create(1, "snap", 20, 5);
+  TRAASH_CHECK(s != NULL);
+  uint8_t *buf = NULL;
+  size_t len = 0;
+  TRAASH_CHECK_EQ(traash_snapshot_encode(s, &buf, &len), 0);
+  TraashSession *d = traash_snapshot_decode(buf, len, 20, 5);
+  free(buf);
+  TRAASH_CHECK(d != NULL);
+  TRAASH_CHECK_STREQ(d->name, "snap");
+  traash_session_destroy(s);
+  traash_session_destroy(d);
+}
+
+static void test_proto_frame(void) {
+  uint8_t payload[] = {1, 2, 3};
+  uint8_t *frame = NULL;
+  size_t n = 0;
+  TRAASH_CHECK_EQ(traash_proto_encode(TRAASH_PROTO_AUTH, payload, 3, &frame, &n), 0);
+  TraashProtoFrame out;
+  size_t consumed = 0;
+  TRAASH_CHECK_EQ(traash_proto_decode(frame, n, &out, &consumed), 0);
+  TRAASH_CHECK_EQ(out.type, (uint32_t)TRAASH_PROTO_AUTH);
+  TRAASH_CHECK_EQ(out.len, 3u);
+  traash_proto_frame_free(&out);
+  free(frame);
+}
+
 int main(void) {
   test_utf8();
   test_ring();
@@ -365,5 +422,8 @@ int main(void) {
   test_selection_word();
   test_screen_search();
   test_vt_charset_and_dsr();
+  test_crypto_dual_password();
+  test_snapshot_roundtrip();
+  test_proto_frame();
   return traash_test_report();
 }

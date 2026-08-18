@@ -20,6 +20,7 @@
       </a>
       <div class="nav-links">
         <a href="index.html">Docs</a>
+        <a href="agents.html">Agents</a>
         <a href="getting-started.html">Getting started</a>
         <a class="active" href="keyboard-ui.html">Keyboard &amp; UI</a>
         <a href="plugins.html">Plugins</a>
@@ -207,8 +208,19 @@
       <p><span class="kbd">Ctrl-Shift-Q</span> quits. If any pane still has a foreground process (not just the idle shell), a dialog lists them. <strong>Cancel</strong> is focused by default. Enter confirms the focused button; <span class="kbd">y</span> / <span class="kbd">n</span> also work. The same dialog is reused when overview (or a last-pane close) would kill a running process.</p>
     </section>
 
+    <section id="readonly" aria-labelledby="readonly-title">
+      <p class="eyebrow">11 — Encrypted attach</p>
+      <h2 id="readonly-title">Read-only clients</h2>
+      <p>When you attach with the read-only password (or use <code>--read-only</code>), the status bar shows a <strong>READ-ONLY</strong> badge. The mux server enforces observer mode:</p>
+      <ul>
+        <li><strong>Blocked:</strong> keyboard input to the shell, paste, splits, new windows, pane focus commands that change the host layout, layout picker apply.</li>
+        <li><strong>Allowed:</strong> viewing the terminal, scrolling, copy, search, theme/settings (local UI), session overview (read-only mirror).</li>
+      </ul>
+      <p class="note">Attach details and crypto notes: <a href="getting-started.html#encrypted">Getting started → Encrypted sessions</a>.</p>
+    </section>
+
     <section id="notify" aria-labelledby="notify-title">
-      <p class="eyebrow">10 — Notifications</p>
+      <p class="eyebrow">12 — Notifications</p>
       <h2 id="notify-title">Desktop notifications</h2>
       <ul>
         <li><code>traash.notify</code> logs and shows a desktop notification. Linux: <code>notify-send</code> (app name <code>traa.sh</code>, 3.5s, transient, replaces the previous traa.sh notification). macOS: Notification Center via <code>osascript</code>.</li>

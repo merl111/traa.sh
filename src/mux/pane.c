@@ -15,6 +15,27 @@ static void pane_vt_reply(void *ud, const char *data, size_t n) {
   traash_pty_write(&p->pty, (const uint8_t *)data, n);
 }
 
+static void pane_vt_on_osc(void *ud, int code, const char *data) {
+  TraashPane *p = ud;
+  if (!p) {
+    return;
+  }
+  if (p->agent_osc_hook) {
+    p->agent_osc_hook(p, code, data, p->agent_osc_ud);
+  }
+}
+
+void traash_pane_set_agent_osc_hook(TraashPane *p,
+                                    void (*fn)(TraashPane *, int, const char *, void *),
+                                    void *ud) {
+  if (!p) {
+    return;
+  }
+  p->agent_osc_hook = fn;
+  p->agent_osc_ud = ud;
+  p->vt.on_osc = pane_vt_on_osc;
+}
+
 TraashPane *traash_pane_create(int id, int cols, int rows) {
   TraashPane *p = calloc(1, sizeof(*p));
   if (!p) {

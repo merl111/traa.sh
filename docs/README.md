@@ -3,15 +3,18 @@
 This folder is the static site for **traa.sh** developer docs. GitHub Pages
 serves it from the `/docs` folder on the default branch.
 
+**Start here for automation:** [`agents.html`](agents.html) — JSON mux API, `traash agent` CLI, events, shell-init.
+
 ## Pages
 
 | File | Role |
 |------|------|
-| [`index.html`](index.html) | Product / configuration overview |
-| [`getting-started.html`](getting-started.html) | Build, install, CLI, sessions |
+| [`agents.html`](agents.html) | **Agent API** — headless automation, JSON protocol, shell integration |
+| [`index.html`](index.html) | Product / configuration overview (agent-compatible positioning) |
+| [`getting-started.html`](getting-started.html) | Build, install, agent quick start, CLI, encrypted sessions |
 | [`keyboard-ui.html`](keyboard-ui.html) | Keymap, overview, overlays, mouse, quit |
 | [`plugins.html`](plugins.html) | Plugin development and host API |
-| [`llms.txt`](llms.txt) | Agent-oriented digest |
+| [`llms.txt`](llms.txt) | Agent-oriented digest (Agent API section first) |
 | [`assets/site.css`](assets/site.css) | Shared visual / navigation styles |
 | [`assets/traash.svg`](assets/traash.svg) | Logo |
 

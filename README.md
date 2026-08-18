@@ -1,11 +1,27 @@
 # traa.sh
 
-Modern, GPU-accelerated terminal emulator written in C for Linux and macOS.
+Modern, GPU-accelerated terminal emulator written in C for Linux and macOS — **built for humans and automation agents**.
 
 **Website / brand:** [traa.sh](https://traa.sh)
 
+## Agent-compatible terminal
+
+traa.sh exposes a **stable JSON API** over its mux socket so scripts and AI agents can drive sessions without parsing ANSI or opening the GUI:
+
+```bash
+traash --server --create dev &
+traash agent state dev                    # pane text, cwd, cursor, busy flag
+traash agent send dev --pane 1 --literal $'make test\n'
+traash agent wait dev --pane 1            # blocks until OSC 133;D (shell integration)
+traash agent subscribe dev                # JSONL events: cwd, title, command_finished
+eval "$(traash shell-init bash)"          # add to shell rc for reliable wait/send
+```
+
+Full protocol reference: **[docs/agents.html](docs/agents.html)** · agent digest: **[docs/llms.txt](docs/llms.txt)**
+
 ## Features
 
+- **Headless agent API** — `traash agent state|send|wait|subscribe|run-action` over Unix/TCP mux
 - OpenGL text rendering (GLFW + FreeType + HarfBuzz deps)
 - Built-in tmux-like multiplexing (sessions / windows / panes, detach/attach)
 - Two-level session overview with live tab and pane previews
@@ -24,7 +40,7 @@ Dependencies: CMake, Ninja, GLFW (fetched), OpenGL, FreeType, HarfBuzz, Lua, Fon
 
 ```bash
 sudo apt-get install ninja-build pkg-config libfreetype6-dev libharfbuzz-dev \
-  liblua5.4-dev libfontconfig1-dev libgl1-mesa-dev \
+  liblua5.4-dev libfontconfig1-dev libssl-dev libgl1-mesa-dev \
   libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
   libwayland-dev libxkbcommon-dev
 ```
@@ -73,7 +89,7 @@ Status styles: `lua/status/{pills,minimal,tmux,powerline,dev,compact,centered}.l
 Layouts: `lua/layouts/` or `~/.config/traash/layouts/` (`single`, `h-split`, `v-split`, `dev`).  
 Plugin API: `lua/api/README.md`.
 
-**Docs site (GitHub Pages):** [`docs/`](docs/) — [getting started](docs/getting-started.html), [keyboard & UI](docs/keyboard-ui.html), [plugins](docs/plugins.html), and an agent-oriented [`llms.txt`](docs/llms.txt).
+**Docs site (GitHub Pages):** [`docs/`](docs/) — **[agent API](docs/agents.html)** (start here for automation), [getting started](docs/getting-started.html), [keyboard & UI](docs/keyboard-ui.html), [plugins](docs/plugins.html), [`llms.txt`](docs/llms.txt).
 
 Local preview: `make docs-preview` (http://localhost:8080/ by default; `DOCS_PORT=8081` if that port is taken). Validate links with `make docs-check`.
 
@@ -123,12 +139,31 @@ Also (no prefix): `Ctrl-h/j/k/l` pane focus, `Ctrl-Shift-+` / `Ctrl--` font size
 
 ```
 traash --demo [--auto]
-traash --server
+traash --server [--bind ADDR:PORT]
 traash --list-sessions
-traash --attach NAME
-traash --create NAME
+traash --attach NAME [--read-only] [--host H --port P]
+traash --create NAME [--encrypt]
+traash --password-fd FD
 traash --headless-test
+traash agent state|send|wait|subscribe|run-action SESSION ...
+traash shell-init bash|zsh|fish
 ```
+
+See **[docs/agents.html](docs/agents.html)** for JSON message types, events, shell setup, exit codes, and encrypted read-only roles.
+
+### Encrypted sessions
+
+Create an encrypted session with separate write and read-only passwords:
+
+```bash
+traash --create myvault --encrypt
+traash --server --bind 127.0.0.1:9477
+traash --attach myvault          # prompts for password; role from password
+traash --attach myvault --read-only
+traash --attach myvault --host 127.0.0.1 --port 9477
+```
+
+Encrypted snapshots are stored at `~/.local/share/traash/sessions/<name>.tsn` (AES-256-GCM, PBKDF2). Passwords are never taken on the command line — use the tty prompt or `--password-fd`. TCP attach sends the password in the clear (no TLS in v1); use Unix socket or a trusted LAN. Agents use the same dual-password model: read-only attach can query state and subscribe but cannot send input or wait-for-idle.
 
 ## Icon
 

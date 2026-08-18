@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Getting started — traa.sh</title>
-  <meta name="description" content="Build, install, and run traa.sh. CLI flags, config location, sessions, and first-run defaults." />
+  <meta name="description" content="Build and run traa.sh. Agent API quick start, CLI, mux sessions, encrypted attach, and config." />
   <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,6 +20,7 @@
       </a>
       <div class="nav-links">
         <a href="index.html">Docs</a>
+        <a href="agents.html">Agents</a>
         <a class="active" href="getting-started.html">Getting started</a>
         <a href="keyboard-ui.html">Keyboard &amp; UI</a>
         <a href="plugins.html">Plugins</a>
@@ -31,17 +32,33 @@
   <header class="hero page-hero wrap">
     <p class="eyebrow">Guide</p>
     <h1>Getting started</h1>
-    <p class="lead">Build from source, install a desktop entry, and attach a mux session. Config lives in Lua next to themes, layouts, and plugins.</p>
+    <p class="lead">Build from source, run the mux host headless, and drive sessions with <code>traash agent</code>. The GUI is optional — start here for automation, then configure themes and plugins.</p>
   </header>
 
   <main class="wrap">
+    <section id="agents" aria-labelledby="agents-title">
+      <p class="eyebrow">00 — Agents</p>
+      <h2 id="agents-title">Agent-compatible from day one</h2>
+      <p class="section-lead">traa.sh is designed for external automation: a JSON API on the mux socket, a headless CLI, and shell integration for reliable wait-for-command.</p>
+      <div class="callout">
+        <strong>Typical flow:</strong> run <code>traash --server</code>, use <code>traash agent state|send|wait|subscribe</code>, source <code>traash shell-init</code> in your shell. No GUI window required.
+      </div>
+<pre>traash --server --create dev &
+traash agent state dev
+eval "$(traash shell-init bash)"   <span class="c"># add to ~/.bashrc for wait/send</span>
+traash agent send dev --pane 1 --literal $'make test\n'
+traash agent wait dev --pane 1
+traash agent subscribe dev</pre>
+      <p>Protocol details, message types, events, and security: <a href="agents.html">Agent API guide</a>. Machine-readable digest: <a href="llms.txt">llms.txt</a>.</p>
+    </section>
+
     <section id="build" aria-labelledby="build-title">
       <p class="eyebrow">01 — Build</p>
       <h2 id="build-title">Build and run</h2>
-      <p class="section-lead">Dependencies: CMake, Ninja, OpenGL, FreeType, HarfBuzz, Lua, Fontconfig, and <code>libutil</code> (pty on Linux). GLFW is fetched by CMake.</p>
+      <p class="section-lead">Dependencies: CMake, Ninja, OpenGL, FreeType, HarfBuzz, Lua, Fontconfig, OpenSSL (<code>libssl-dev</code>), and <code>libutil</code> (pty on Linux). GLFW is fetched by CMake.</p>
 <pre><span class="c"># Debian/Ubuntu</span>
 sudo apt-get install ninja-build pkg-config libfreetype6-dev libharfbuzz-dev \
-  liblua5.4-dev libfontconfig1-dev libgl1-mesa-dev \
+  liblua5.4-dev libfontconfig1-dev libssl-dev libgl1-mesa-dev \
   libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
   libwayland-dev libxkbcommon-dev
 
@@ -92,10 +109,18 @@ make install PREFIX=/usr/local</pre>
         <tbody>
           <tr><td><code>traash</code></td><td>Open the GUI and attach (or create) the default session</td></tr>
           <tr><td><code>--demo [--auto]</code></td><td>Capability demo; <code>--auto</code> advances without waiting</td></tr>
-          <tr><td><code>--server</code></td><td>Run the mux server only (no window)</td></tr>
-          <tr><td><code>--list-sessions</code></td><td>List sessions on the mux socket</td></tr>
-          <tr><td><code>--attach NAME</code></td><td>Attach an existing named session</td></tr>
-          <tr><td><code>--create NAME</code></td><td>Create a named session</td></tr>
+          <tr><td><code>--server [--bind ADDR:PORT]</code></td><td>Run the mux server headless (Unix socket + optional TCP)</td></tr>
+          <tr><td><code>--list-sessions</code></td><td>List sessions on the mux socket (encrypted sessions show a <code>*</code> suffix)</td></tr>
+          <tr><td><code>--create NAME [--encrypt]</code></td><td>Create a session; <code>--encrypt</code> prompts for write + read-only passwords</td></tr>
+          <tr><td><code>--attach NAME</code></td><td>Attach a session (client if a server is running, else local host)</td></tr>
+          <tr><td><code>--read-only</code></td><td>Force read-only attach (observer mode)</td></tr>
+          <tr><td><code>--host HOST</code> / <code>--port PORT</code></td><td>Attach over TCP (default port <code>9477</code>)</td></tr>
+          <tr><td><code>--password-fd FD</code></td><td>Read attach password from an open file descriptor (never pass passwords on argv)</td></tr>
+          <tr><td><code>traash agent state SESSION</code></td><td>Export pane text, cwd, cursor, busy flag as JSON (headless)</td></tr>
+          <tr><td><code>traash agent send SESSION --pane N --literal BYTES</code></td><td>Write bytes to a pane PTY</td></tr>
+          <tr><td><code>traash agent wait SESSION --pane N [--timeout MS]</code></td><td>Block until shell reports command finished (OSC 133;D)</td></tr>
+          <tr><td><code>traash agent subscribe SESSION [--emit-output]</code></td><td>Stream JSONL events until Ctrl-C</td></tr>
+          <tr><td><code>traash shell-init bash|zsh|fish</code></td><td>Print shell snippet for OSC 133 + OSC 7 integration</td></tr>
           <tr><td><code>--headless-test</code></td><td>Init core and exit (CI)</td></tr>
           <tr><td><code>-h</code> / <code>--help</code></td><td>Print usage</td></tr>
         </tbody>
@@ -115,6 +140,7 @@ make install PREFIX=/usr/local</pre>
           <tr><td><code>~/.config/traash/config.lua</code></td><td>User overlay; Settings writes this file</td></tr>
           <tr><td><code>~/.config/traash/themes/</code></td><td>User themes (override bundled ids)</td></tr>
           <tr><td><code>~/.config/traash/layouts/</code></td><td>User layouts (override bundled ids)</td></tr>
+          <tr><td><code>~/.local/share/traash/sessions/</code></td><td>Encrypted session snapshots (<code>&lt;name&gt;.tsn</code>, mode 0600)</td></tr>
           <tr><td><code>lua/themes/</code>, <code>lua/status/</code>, <code>lua/layouts/</code></td><td>Bundled assets</td></tr>
           <tr><td><code>lua/plugins/examples/&lt;id&gt;/init.lua</code></td><td>Only plugin location the host loads</td></tr>
         </tbody>
@@ -144,16 +170,40 @@ config = {
     <section id="sessions" aria-labelledby="sessions-title">
       <p class="eyebrow">05 — Sessions</p>
       <h2 id="sessions-title">Mux sessions</h2>
-      <p class="section-lead">traa.sh is a terminal and a tmux-style multiplexer. One process hosts sessions; extra clients attach over the mux socket.</p>
+      <p class="section-lead">traa.sh is a terminal and a tmux-style multiplexer. A <strong>host</strong> process runs live PTYs; extra <strong>clients</strong> attach over the mux socket (local Unix or optional TCP).</p>
       <ul>
         <li>A <strong>session</strong> holds numbered <strong>windows</strong> (tabs) of <strong>panes</strong>.</li>
-        <li>Prefix <span class="kbd">Ctrl-b</span> then <span class="kbd">d</span> detaches; the session keeps running.</li>
-        <li><code>--attach NAME</code> reconnects. <code>default_layout</code> is skipped on attach so you do not wipe the live layout.</li>
+        <li><code>traash --server</code> runs a headless host. Without it, the GUI process is the host and also listens on the Unix socket.</li>
+        <li>If a mux server is already running, <code>traash --attach NAME</code> opens a GUI <em>client</em> that mirrors the host session.</li>
+        <li>Prefix <span class="kbd">Ctrl-b</span> then <span class="kbd">d</span> detaches the GUI client; the host session keeps running.</li>
+        <li><code>default_layout</code> is skipped on attach so you do not wipe the live layout.</li>
         <li>Closing the last shell (for example Ctrl-D in the last pane) exits the window, same as other terminals.</li>
       </ul>
+      <h3 id="encrypted">Encrypted sessions</h3>
+      <p>Create a password-protected session with two secrets: a <strong>write password</strong> (view + type) and a <strong>read-only password</strong> (view only). Snapshots are stored encrypted on disk; whichever password you enter determines your role.</p>
+<pre><span class="c"># Create encrypted session (prompts for both passwords)</span>
+traash --create myvault --encrypt
+
+<span class="c"># Run a persistent host (optional TCP for remote clients)</span>
+traash --server --bind 127.0.0.1:9477
+
+<span class="c"># Attach locally (prompts for password)</span>
+traash --attach myvault
+
+<span class="c"># Attach as observer, or over TCP</span>
+traash --attach myvault --read-only
+traash --attach myvault --host 127.0.0.1 --port 9477</pre>
+      <div class="callout">
+        <strong>Security (v1):</strong> Passwords are never accepted on the command line — use the tty prompt or <code>--password-fd</code>.
+        Encrypted files live at <code>$XDG_DATA_HOME/traash/sessions/&lt;name&gt;.tsn</code> (or <code>~/.local/share/traash/sessions/</code>).
+        Crypto: AES-256-GCM payload + PBKDF2-HMAC-SHA256 per-password key wraps.
+        TCP attach has <em>no TLS</em> — the password is sent in the AUTH frame; use Unix socket or a trusted LAN.
+        Shell <em>processes</em> are not restored after a host restart; layout, screen, and scrollback are.
+      </div>
+      <p>Read-only clients see a <code>READ-ONLY</code> badge in the status bar. The server rejects keyboard input, paste, and mutating mux actions (splits, new windows, layout apply) for read-only attaches. Copy, scroll, search, and local UI overlays still work.</p>
       <h3 id="layouts">Startup layouts</h3>
       <p>If <code>default_layout</code> is a known layout id (<code>single</code>, <code>h-split</code>, <code>v-split</code>, <code>dev</code>, or a user layout), it is applied on a fresh session. Apply recreates tabs and panes with <em>fresh shells</em> — geometry only, not cwd/title/scrollback. Open the picker anytime with <span class="kbd">Ctrl-Shift-L</span>.</p>
-      <p>Next: <a href="keyboard-ui.html">keyboard, overlays, and mouse</a>, then the <a href="plugins.html">plugin guide</a>.</p>
+      <p>Next: <a href="agents.html">full agent API reference</a>, <a href="keyboard-ui.html">keyboard, overlays, and mouse</a>, then the <a href="plugins.html">plugin guide</a>.</p>
     </section>
   </main>
 
@@ -165,6 +215,8 @@ config = {
       </div>
       <div>
         <a href="index.html">Docs</a>
+        ·
+        <a href="agents.html">Agents</a>
         ·
         <a href="keyboard-ui.html">Keyboard &amp; UI</a>
         ·

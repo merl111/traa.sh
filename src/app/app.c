@@ -20,9 +20,13 @@
 #include "ui/shortcuts_overlay.h"
 #include "ui/status_bar.h"
 #include "util/log.h"
+#include "util/path.h"
 #include "term/screen.h"
 #include "assets/icon_embedded.h"
 #include "mux/layout_store.h"
+#include "mux/client.h"
+#include "mux/snapshot.h"
+#include "crypto/secret.h"
 
 #include <GLFW/glfw3.h>
 #include <math.h>
@@ -78,9 +82,54 @@ typedef struct {
   double last_resize_present_at; /* throttle presents during interactive resize */
   int resize_fast_pending; /* 1 = need a full redraw after drag settles */
   int content_scale_pending; /* apply after configure-event batch / resize */
+  int client_mode;
+  int client_role;
+  TraashMuxConnection client;
 } TraashApp;
 
 static TraashApp *g_app;
+
+static int app_read_only(const TraashApp *app) {
+  return app && app->client_mode && app->client_role == TRAASH_ROLE_READ;
+}
+
+static TraashSession *app_session(const TraashApp *app) {
+  if (app->client_mode && app->client.session) {
+    return app->client.session;
+  }
+  return app->mux.attached;
+}
+
+static void app_write_pane(TraashApp *app, TraashPane *pane, const uint8_t *data, size_t n) {
+  if (!app || !pane || !data || n == 0 || app_read_only(app)) {
+    return;
+  }
+  if (app->client_mode) {
+    traash_mux_client_send_input(&app->client, pane->id, data, n);
+    return;
+  }
+  if (pane->pty.master_fd >= 0) {
+    traash_pty_write(&pane->pty, data, n);
+  }
+}
+
+static void app_send_action(TraashApp *app, TraashAction action) {
+  if (!app->client_mode) {
+    return;
+  }
+  if (app_read_only(app) && traash_mux_action_mutating((uint32_t)action)) {
+    return;
+  }
+  uint32_t extra = 0;
+  uint32_t extra_len = 0;
+  if (action == TRAASH_ACTION_GOTO_WINDOW) {
+    extra = (uint32_t)app->keymap.goto_window;
+    extra_len = 4;
+  }
+  traash_mux_client_send_action(&app->client, (uint32_t)action, (const uint8_t *)&extra,
+                                extra_len);
+  app->mux.attached = app->client.session;
+}
 
 static const char *THEMES[] = {"tokyo-night", "catppuccin-mocha", "dracula",
                                "gruvbox-dark", "nord",           "one-dark",
@@ -90,9 +139,16 @@ static const char *STATUSES[] = {"pills", "powerline", "minimal", "tmux", "dev",
                                  "centered"};
 
 static void refresh_status(TraashApp *app) {
-  TraashSession *s = app->mux.attached;
+  TraashSession *s = app_session(app);
   traash_status_render(app->cfg.lua, app->cfg.status_bar, s, &app->status);
   traash_status_bar_format(&app->status, app->status_line, sizeof(app->status_line));
+  if (app_read_only(app) && app->status.count < 32) {
+    TraashStatusSegment *seg = &app->status.segs[app->status.count++];
+    snprintf(seg->text, sizeof(seg->text), " READ-ONLY ");
+    snprintf(seg->align, sizeof(seg->align), "right");
+    seg->fg = 0xffcc66;
+    seg->bg = 0x3d2e00;
+  }
   if (app->keymap.prefix_active && app->status.count < 32) {
     TraashStatusSegment *seg = &app->status.segs[app->status.count++];
     snprintf(seg->text, sizeof(seg->text), " PREFIX ");
@@ -301,8 +357,21 @@ static void layout_delete_selected(TraashApp *app) {
 }
 
 static void paste_text(TraashApp *app, const char *clip) {
-  TraashPane *pane = traash_session_active_pane(app->mux.attached);
-  if (!pane || pane->pty.master_fd < 0 || !clip || !clip[0]) {
+  TraashPane *pane = traash_session_active_pane(app_session(app));
+  if (!pane || !clip || !clip[0] || app_read_only(app)) {
+    return;
+  }
+  if (app->client_mode) {
+    if (pane->screen.bracketed_paste) {
+      app_write_pane(app, pane, (const uint8_t *)"\x1b[200~", 6);
+    }
+    app_write_pane(app, pane, (const uint8_t *)clip, strlen(clip));
+    if (pane->screen.bracketed_paste) {
+      app_write_pane(app, pane, (const uint8_t *)"\x1b[201~", 6);
+    }
+    return;
+  }
+  if (pane->pty.master_fd < 0) {
     return;
   }
   if (pane->screen.bracketed_paste) {
@@ -602,8 +671,55 @@ static void cancel_app_quit(TraashApp *app) {
 }
 
 static void run_action(TraashApp *app, TraashAction action) {
-  TraashSession *sess = app->mux.attached;
+  TraashSession *sess = app_session(app);
   TraashWindow *win = sess ? sess->active : NULL;
+  if (app->client_mode) {
+    switch (action) {
+    case TRAASH_ACTION_COMMAND_PALETTE:
+      traash_palette_toggle(&app->palette);
+      return;
+    case TRAASH_ACTION_RELOAD_CONFIG:
+      traash_config_reload(&app->cfg);
+      apply_theme(app, app->cfg.theme);
+      app->renderer.cursor_style = app->cfg.cursor_style;
+      return;
+    case TRAASH_ACTION_THEME_CYCLE:
+      app->theme_index = (app->theme_index + 1) % app->theme_count;
+      apply_theme(app, app->theme_names[app->theme_index]);
+      return;
+    case TRAASH_ACTION_STATUS_CYCLE:
+      app->status_index = (app->status_index + 1) % app->status_count;
+      return;
+    case TRAASH_ACTION_SEARCH:
+      app->search_mode = !app->search_mode;
+      return;
+    case TRAASH_ACTION_SETTINGS:
+      if (!traash_settings_window_is_open(&app->settings_win)) {
+        traash_settings_window_open(&app->settings_win, app->window, &app->cfg, app->cfg.lua);
+      }
+      return;
+    case TRAASH_ACTION_SHORTCUTS:
+      traash_shortcuts_overlay_toggle(&app->shortcuts);
+      return;
+    case TRAASH_ACTION_OVERVIEW:
+      traash_overview_overlay_toggle(&app->overview, sess);
+      overview_clamp_now(app);
+      return;
+    case TRAASH_ACTION_LAYOUT_PICKER:
+      traash_layout_overlay_toggle(&app->layouts);
+      return;
+    case TRAASH_ACTION_QUIT:
+      glfwSetWindowShouldClose(app->window, GLFW_TRUE);
+      return;
+    case TRAASH_ACTION_COPY:
+    case TRAASH_ACTION_FONT_INCREASE:
+    case TRAASH_ACTION_FONT_DECREASE:
+      break;
+    default:
+      app_send_action(app, action);
+      return;
+    }
+  }
   switch (action) {
   case TRAASH_ACTION_SPLIT_H:
     if (win) {
@@ -1116,74 +1232,77 @@ static void key_cb(GLFWwindow *w, int key, int scancode, int action, int mods) {
     }
   }
 
-  TraashPane *pane = traash_session_active_pane(app->mux.attached);
-  if (!pane || pane->pty.master_fd < 0) {
+  TraashPane *pane = traash_session_active_pane(app_session(app));
+  if (!pane) {
+    return;
+  }
+  if (!app->client_mode && pane->pty.master_fd < 0) {
     return;
   }
 
   /* xterm-style CSI / control sequences for keys terminals always expect */
   if (key == GLFW_KEY_ENTER) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\r", 1);
+    app_write_pane(app, pane, (const uint8_t *)"\r", 1);
   } else if (key == GLFW_KEY_BACKSPACE) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x7f", 1);
+    app_write_pane(app, pane, (const uint8_t *)"\x7f", 1);
   } else if (key == GLFW_KEY_TAB) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\t", 1);
+    app_write_pane(app, pane, (const uint8_t *)"\t", 1);
   } else if (key == GLFW_KEY_ESCAPE) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x1b", 1);
+    app_write_pane(app, pane, (const uint8_t *)"\x1b", 1);
   } else if (key == GLFW_KEY_DELETE) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x1b[3~", 4);
+    app_write_pane(app, pane, (const uint8_t *)"\x1b[3~", 4);
   } else if (key == GLFW_KEY_INSERT) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x1b[2~", 4);
+    app_write_pane(app, pane, (const uint8_t *)"\x1b[2~", 4);
   } else if (key == GLFW_KEY_HOME) {
     const char *seq = pane->vt.app_cursor ? "\x1bOH" : "\x1b[H";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if (key == GLFW_KEY_END) {
     const char *seq = pane->vt.app_cursor ? "\x1bOF" : "\x1b[F";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if (key == GLFW_KEY_PAGE_UP) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x1b[5~", 4);
+    app_write_pane(app, pane, (const uint8_t *)"\x1b[5~", 4);
   } else if (key == GLFW_KEY_PAGE_DOWN) {
-    traash_pty_write(&pane->pty, (const uint8_t *)"\x1b[6~", 4);
+    app_write_pane(app, pane, (const uint8_t *)"\x1b[6~", 4);
   } else if (key == GLFW_KEY_UP) {
     const char *seq =
         (m & 1)   ? "\x1b[1;5A"
         : (m & 4) ? "\x1b[1;3A"
         : pane->vt.app_cursor ? "\x1bOA"
                               : "\x1b[A";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if (key == GLFW_KEY_DOWN) {
     const char *seq =
         (m & 1)   ? "\x1b[1;5B"
         : (m & 4) ? "\x1b[1;3B"
         : pane->vt.app_cursor ? "\x1bOB"
                               : "\x1b[B";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if (key == GLFW_KEY_RIGHT) {
     const char *seq =
         (m & 1)   ? "\x1b[1;5C"
         : (m & 4) ? "\x1b[1;3C"
         : pane->vt.app_cursor ? "\x1bOC"
                               : "\x1b[C";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if (key == GLFW_KEY_LEFT) {
     const char *seq =
         (m & 1)   ? "\x1b[1;5D"
         : (m & 4) ? "\x1b[1;3D"
         : pane->vt.app_cursor ? "\x1bOD"
                               : "\x1b[D";
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, strlen(seq));
+    app_write_pane(app, pane, (const uint8_t *)seq, strlen(seq));
   } else if ((m & 1) && key == GLFW_KEY_BACKSLASH) {
     uint8_t c = 0x1c; /* Ctrl-\ = SIGQUIT */
-    traash_pty_write(&pane->pty, &c, 1);
+    app_write_pane(app, pane, &c, 1);
   } else if ((m & 1) && key == GLFW_KEY_LEFT_BRACKET) {
     uint8_t c = 0x1b; /* Ctrl-[ = ESC */
-    traash_pty_write(&pane->pty, &c, 1);
+    app_write_pane(app, pane, &c, 1);
   } else if ((m & 1) && key == GLFW_KEY_MINUS) {
     uint8_t c = 0x1f; /* Ctrl-_ / Ctrl-- */
-    traash_pty_write(&pane->pty, &c, 1);
+    app_write_pane(app, pane, &c, 1);
   } else if ((m & 1) && !(m & 2) && key == GLFW_KEY_SLASH) {
     uint8_t c = 0x1f; /* Ctrl-/ often maps to same as Ctrl-_ */
-    traash_pty_write(&pane->pty, &c, 1);
+    app_write_pane(app, pane, &c, 1);
   } else if ((m & 1) && !(m & 2) && key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
     /* Plain Ctrl+letter → shell (^C ^D ^Z …). Ctrl-Shift stays for app binds. */
     if (key == app->keymap.prefix_key &&
@@ -1192,16 +1311,16 @@ static void key_cb(GLFWwindow *w, int key, int scancode, int action, int mods) {
       return;
     }
     uint8_t c = (uint8_t)(key - GLFW_KEY_A + 1);
-    traash_pty_write(&pane->pty, &c, 1);
+    app_write_pane(app, pane, &c, 1);
   } else if (key >= GLFW_KEY_F1 && key <= GLFW_KEY_F4) {
     char seq[8];
     int n = snprintf(seq, sizeof(seq), "\x1bO%c", 'P' + (key - GLFW_KEY_F1));
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, (size_t)n);
+    app_write_pane(app, pane, (const uint8_t *)seq, (size_t)n);
   } else if (key >= GLFW_KEY_F5 && key <= GLFW_KEY_F12) {
     static const int fcodes[] = {15, 17, 18, 19, 20, 21, 23, 24};
     char seq[16];
     int n = snprintf(seq, sizeof(seq), "\x1b[%d~", fcodes[key - GLFW_KEY_F5]);
-    traash_pty_write(&pane->pty, (const uint8_t *)seq, (size_t)n);
+    app_write_pane(app, pane, (const uint8_t *)seq, (size_t)n);
   }
   (void)w;
 }
@@ -1284,8 +1403,11 @@ static void char_cb(GLFWwindow *w, unsigned int codepoint) {
   if (app->keymap.prefix_active) {
     return;
   }
-  TraashPane *pane = traash_session_active_pane(app->mux.attached);
+  TraashPane *pane = traash_session_active_pane(app_session(app));
   if (!pane) {
+    return;
+  }
+  if (!app->client_mode && pane->pty.master_fd < 0) {
     return;
   }
   uint8_t buf[4];
@@ -1309,7 +1431,7 @@ static void char_cb(GLFWwindow *w, unsigned int codepoint) {
     buf[3] = (uint8_t)(0x80 | (codepoint & 0x3F));
     n = 4;
   }
-  traash_pty_write(&pane->pty, buf, (size_t)n);
+  app_write_pane(app, pane, buf, (size_t)n);
 }
 
 static void scroll_cb(GLFWwindow *w, double xoff, double yoff) {
@@ -1782,7 +1904,7 @@ static void present_frame_ex(TraashApp *app, int fast_resize) {
     }
   }
 
-  traash_renderer_draw_ex(&app->renderer, app->mux.attached, &app->theme, &draw_status, now,
+  traash_renderer_draw_ex(&app->renderer, app_session(app), &app->theme, &draw_status, now,
                           &app->menu, &app->shortcuts, &app->layouts, &app->overview,
                           &app->quit_confirm, &app->keymap, &search_draw, fast_resize);
   glfwSwapBuffers(app->window);
@@ -1869,12 +1991,15 @@ static void focus_cb(GLFWwindow *w, int focused) {
     return;
   }
   app->window_focused = focused;
-  TraashPane *pane = traash_session_active_pane(app->mux.attached);
-  if (!pane || !pane->screen.focus_report || pane->pty.master_fd < 0) {
+  TraashPane *pane = traash_session_active_pane(app_session(app));
+  if (!pane || !pane->screen.focus_report) {
+    return;
+  }
+  if (!app->client_mode && pane->pty.master_fd < 0) {
     return;
   }
   const char *seq = focused ? "\033[I" : "\033[O";
-  traash_pty_write(&pane->pty, (const uint8_t *)seq, 3);
+  app_write_pane(app, pane, (const uint8_t *)seq, 3);
 }
 
 int traash_app_run(const TraashCli *cli) {
@@ -1894,15 +2019,76 @@ int traash_app_run(const TraashCli *cli) {
   traash_config_apply_keys(&app.cfg, &app.keymap);
   traash_palette_init(&app.palette);
 
-  if (traash_mux_init(&app.mux, 120, 40) != 0) {
-    TRAASH_LOGE("mux init failed");
-    return 1;
-  }
-  traash_mux_start_listener(&app.mux);
-  if (cli->attach) {
-    traash_mux_attach(&app.mux, cli->attach);
-  } else if (app.cfg.default_layout[0]) {
-    apply_named_layout(&app, app.cfg.default_layout);
+  if (cli->attach && (cli->host || traash_mux_server_running())) {
+    if (cli->host) {
+      if (traash_mux_connect_tcp(cli->host, cli->port, &app.client) != 0) {
+        TRAASH_LOGE("tcp connect failed");
+        return 1;
+      }
+    } else {
+      char runtime[400];
+      char sock[512];
+      if (traash_runtime_dir(runtime, sizeof(runtime)) != 0) {
+        TRAASH_LOGE("runtime dir failed");
+        return 1;
+      }
+      snprintf(sock, sizeof(sock), "%s/mux.sock", runtime);
+      if (traash_mux_connect_unix(sock, &app.client) != 0) {
+        TRAASH_LOGE("mux connect failed");
+        return 1;
+      }
+    }
+    int role = TRAASH_ROLE_WRITE;
+    if (traash_mux_client_auth(&app.client, cli->attach, cli->password, cli->read_only,
+                               &role) != 0) {
+      TRAASH_LOGE("authentication failed");
+      traash_mux_client_close(&app.client);
+      return 1;
+    }
+    app.client_mode = 1;
+    app.client_role = role;
+    app.mux.attached = app.client.session;
+    app.mux.cols = 120;
+    app.mux.rows = 40;
+  } else {
+    if (traash_mux_init(&app.mux, 120, 40) != 0) {
+      TRAASH_LOGE("mux init failed");
+      return 1;
+    }
+    if (!traash_mux_server_running()) {
+      traash_mux_start_listener(&app.mux);
+    }
+    if (cli->attach) {
+      if (traash_session_file_exists(cli->attach) && cli->password[0]) {
+        TraashSession *loaded = NULL;
+        int role = TRAASH_ROLE_NONE;
+        if (traash_snapshot_load_encrypted(cli->attach, cli->password, cli->read_only,
+                                           &loaded, &role) != 0) {
+          TRAASH_LOGE("failed to unlock encrypted session");
+          traash_mux_shutdown(&app.mux);
+          return 1;
+        }
+        loaded->encrypted = 1;
+        loaded->dek_valid = role == TRAASH_ROLE_WRITE;
+        loaded->pw_cached = role == TRAASH_ROLE_WRITE;
+        if (loaded->pw_cached) {
+          snprintf(loaded->write_pw, sizeof(loaded->write_pw), "%s", cli->password);
+        }
+        loaded->next = app.mux.sessions;
+        app.mux.sessions = loaded;
+        app.mux.attached = loaded;
+        if (cli->read_only) {
+          app.client_role = TRAASH_ROLE_READ;
+        }
+      } else {
+        traash_mux_attach(&app.mux, cli->attach);
+      }
+    } else if (cli->create && cli->encrypt) {
+      traash_mux_create_encrypted_session(&app.mux, cli->create, cli->write_pw, cli->read_pw);
+      traash_mux_attach(&app.mux, cli->create);
+    } else if (app.cfg.default_layout[0]) {
+      apply_named_layout(&app, app.cfg.default_layout);
+    }
   }
   apply_theme(&app, app.cfg.theme);
   for (int i = 0; i < app.theme_count; i++) {
@@ -2007,8 +2193,16 @@ int traash_app_run(const TraashCli *cli) {
 
     /* Read shell echo/output after handling input */
     int interactive_resize = resizing_now(&app);
-    if (!interactive_resize) {
+    if (app.client_mode) {
+      if (traash_mux_client_poll(&app.client) != 0) {
+        glfwSetWindowShouldClose(app.window, GLFW_TRUE);
+      }
+      app.mux.attached = app.client.session;
+    } else if (!interactive_resize) {
       traash_mux_poll_ex(&app.mux, 0);
+      if (!app.client_mode) {
+        traash_mux_flush_encrypted(&app.mux, glfwGetTime());
+      }
     }
 
     if (!interactive_resize && app.content_scale_pending) {
@@ -2016,7 +2210,7 @@ int traash_app_run(const TraashCli *cli) {
       apply_content_scale(&app);
     }
 
-    if (!app.mux.sessions) {
+    if (!app_session(&app)) {
       /* Last shell exited (e.g. Ctrl-D) — close the window like other terminals */
       glfwSetWindowShouldClose(app.window, GLFW_TRUE);
     }
@@ -2161,7 +2355,11 @@ int traash_app_run(const TraashCli *cli) {
   glfwDestroyWindow(app.window);
   glfwTerminate();
   traash_plugins_shutdown(&app.plugins);
-  traash_mux_shutdown(&app.mux);
+  if (app.client_mode) {
+    traash_mux_client_close(&app.client);
+  } else {
+    traash_mux_shutdown(&app.mux);
+  }
   traash_config_shutdown(&app.cfg);
   g_app = NULL;
   return 0;

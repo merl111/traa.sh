@@ -29,6 +29,7 @@ find_package(Threads REQUIRED)
 pkg_check_modules(FREETYPE REQUIRED freetype2)
 pkg_check_modules(HARFBUZZ REQUIRED harfbuzz)
 pkg_check_modules(FONTCONFIG REQUIRED fontconfig)
+pkg_check_modules(OPENSSL REQUIRED openssl)
 pkg_check_modules(LUA lua)
 if(NOT LUA_FOUND)
   pkg_check_modules(LUA lua5.4)
@@ -56,8 +57,11 @@ set(TRAASH_CORE_SOURCES
   src/util/utf8.c
   src/util/ring.c
   src/util/path.c
+  src/util/password.c
+  src/crypto/secret.c
   src/term/cell.c
   src/term/screen.c
+  src/term/screen_export.c
   src/term/vt.c
   src/term/pty.c
   src/term/selection.c
@@ -65,7 +69,12 @@ set(TRAASH_CORE_SOURCES
   src/mux/window.c
   src/mux/session.c
   src/mux/server.c
+  src/mux/server_loop.c
   src/mux/ipc.c
+  src/mux/protocol.c
+  src/mux/agent_proto.c
+  src/mux/snapshot.c
+  src/mux/client.c
   src/mux/layout.c
   src/mux/layout_store.c
   src/input/keymap.c
@@ -84,12 +93,14 @@ target_include_directories(traash_core PUBLIC
   ${FREETYPE_INCLUDE_DIRS}
   ${HARFBUZZ_INCLUDE_DIRS}
   ${FONTCONFIG_INCLUDE_DIRS}
+  ${OPENSSL_INCLUDE_DIRS}
 )
 target_compile_options(traash_core PUBLIC
   ${LUA_CFLAGS_OTHER}
   ${FREETYPE_CFLAGS_OTHER}
   ${HARFBUZZ_CFLAGS_OTHER}
   ${FONTCONFIG_CFLAGS_OTHER}
+  ${OPENSSL_CFLAGS_OTHER}
   -Wall -Wextra -Wno-unused-parameter
 )
 target_link_directories(traash_core PUBLIC
@@ -97,12 +108,14 @@ target_link_directories(traash_core PUBLIC
   ${FREETYPE_LIBRARY_DIRS}
   ${HARFBUZZ_LIBRARY_DIRS}
   ${FONTCONFIG_LIBRARY_DIRS}
+  ${OPENSSL_LIBRARY_DIRS}
 )
 target_link_libraries(traash_core PUBLIC
   ${LUA_LIBRARIES}
   ${FREETYPE_LIBRARIES}
   ${HARFBUZZ_LIBRARIES}
   ${FONTCONFIG_LIBRARIES}
+  ${OPENSSL_LIBRARIES}
   Threads::Threads
 )
 if(MATH_LIB)
@@ -120,6 +133,8 @@ set(TRAASH_APP_SOURCES
   src/main.c
   src/app/app.c
   src/app/cli.c
+  src/app/agent_cli.c
+  src/app/shell_init.c
   src/platform/platform_posix.c
   src/gfx/gl_loader.c
   src/gfx/renderer.c
@@ -167,6 +182,7 @@ add_custom_command(TARGET traash POST_BUILD
 install(TARGETS traash RUNTIME DESTINATION bin)
 install(DIRECTORY lua/ DESTINATION share/traash/lua)
 install(DIRECTORY assets/ DESTINATION share/traash/assets)
+install(DIRECTORY share/traash/shell/ DESTINATION share/traash/shell)
 if(UNIX AND NOT APPLE)
   install(FILES assets/linux/sh.traa.traash.desktop DESTINATION share/applications)
   # Freedesktop icon theme (Wayland / app launchers use this; X11 also gets glfwSetWindowIcon)

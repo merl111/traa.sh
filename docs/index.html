@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>traa.sh — Docs</title>
-  <meta name="description" content="Developer documentation for traa.sh: getting started, keyboard and UI, Lua config, themes, layouts, status bars, and plugin development." />
+  <meta name="description" content="Agent-compatible GPU terminal: JSON mux API, traash agent CLI, headless automation, Lua config, themes, layouts, and plugins." />
   <link rel="icon" href="assets/traash.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,6 +20,7 @@
       </a>
       <div class="nav-links">
         <a class="active" href="index.html">Docs</a>
+        <a href="agents.html">Agents</a>
         <a href="getting-started.html">Getting started</a>
         <a href="keyboard-ui.html">Keyboard &amp; UI</a>
         <a href="plugins.html">Plugins</a>
@@ -35,15 +36,16 @@
           <img src="assets/traash.svg" alt="traa.sh logo" width="72" height="72" />
           <p class="hero-wordmark">traa.sh</p>
         </div>
-        <h1>GPU terminal with Lua config, layouts, and plugins</h1>
+        <h1>Agent-compatible GPU terminal</h1>
         <p class="lead">
-          OpenGL rendering, tmux-style mux, a live session overview, and a Lua
-          customization surface written for humans and coding agents.
+          Drive sessions headlessly with <code>traash agent</code> — query pane text, send input,
+          wait for command completion, and subscribe to events over a JSON mux API. Optional OpenGL
+          GUI, tmux-style mux, Lua themes, and plugins when you need them.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="getting-started.html">Get started</a>
-          <a class="btn btn-ghost" href="keyboard-ui.html">Keyboard &amp; UI</a>
-          <a class="btn btn-ghost" href="plugins.html">Plugin guide</a>
+          <a class="btn btn-primary" href="agents.html">Agent API</a>
+          <a class="btn btn-ghost" href="getting-started.html">Get started</a>
+          <a class="btn btn-ghost" href="llms.txt">llms.txt</a>
         </div>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -53,18 +55,43 @@
   </header>
 
   <main class="wrap">
+    <section id="agents" aria-labelledby="agents-hero-title">
+      <p class="eyebrow">For automation</p>
+      <h2 id="agents-hero-title">Built for agents</h2>
+      <p class="section-lead">
+        External scripts and AI agents attach to a running mux host — no GUI, no ANSI parsing.
+        State is JSON; idle detection uses shell OSC&nbsp;133; cwd and title come from OSC&nbsp;7/0.
+      </p>
+      <div class="callout">
+        <strong>Quick start:</strong>
+        <code>traash --server --create dev</code> →
+        <code>traash agent state dev</code> →
+        <code>eval "$(traash shell-init bash)"</code> in your shell rc →
+        <code>traash agent send</code> + <code>traash agent wait</code>.
+        Read-only attach can query and subscribe but cannot send input.
+      </div>
+<pre>traash --server --create dev &
+traash agent state dev
+traash agent send dev --pane 1 --literal $'make\n'
+traash agent wait dev --pane 1 --timeout 30000
+traash agent subscribe dev --emit-output</pre>
+      <p><a class="btn btn-primary" href="agents.html">Full agent API reference</a></p>
+    </section>
+
     <section id="map" aria-labelledby="map-title">
       <p class="eyebrow">Map</p>
       <h2 id="map-title">Guides</h2>
       <div class="toc">
-        <a href="getting-started.html">Getting started<span>Build, install, CLI, config</span></a>
+        <a href="agents.html">Agent API<span>traash agent, JSON mux, events, shell-init</span></a>
+        <a href="getting-started.html">Getting started<span>Build, install, CLI, encrypted sessions</span></a>
         <a href="keyboard-ui.html">Keyboard &amp; UI<span>Keys, overview, settings, overlays</span></a>
         <a href="plugins.html">Plugin development<span>API, hooks, segments, notify</span></a>
         <a href="#config">Config schema<span>~/.config/traash/config.lua</span></a>
         <a href="#layouts">Layouts<span>lua/layouts/&lt;name&gt;.lua</span></a>
         <a href="#themes">Themes<span>lua/themes/&lt;name&gt;.lua</span></a>
         <a href="#status">Status bars<span>lua/status/&lt;name&gt;.lua</span></a>
-        <a href="#agents">For agents<span>schemas + conventions</span></a>
+        <a href="getting-started.html#encrypted">Encrypted sessions<span>Dual passwords, mux host/client</span></a>
+        <a href="#lua-agents">Lua plugins (agents)<span>schemas + conventions</span></a>
       </div>
     </section>
 
@@ -221,12 +248,41 @@ config = {
       </table>
     </section>
 
-    <section id="agents" aria-labelledby="agents-title">
-      <p class="eyebrow">05 — Agents</p>
-      <h2 id="agents-title">Agent-ready reference</h2>
+    <section id="encrypted" aria-labelledby="encrypted-title">
+      <p class="eyebrow">06 — Encrypted sessions</p>
+      <h2 id="encrypted-title">Dual-password access</h2>
       <p class="section-lead">
-        Prefer <a href="llms.txt">llms.txt</a> and the <a href="plugins.html">plugin guide</a>.
-        Do not invent host APIs.
+        Optional encrypted sessions store layout + terminal screen on disk at
+        <code>~/.local/share/traash/sessions/&lt;name&gt;.tsn</code>.
+        Two passwords control access: <strong>write</strong> (read + type) and
+        <strong>read-only</strong> (view only).
+      </p>
+      <div class="callout">
+        <strong>Host / client:</strong> <code>traash --server [--bind ADDR:PORT]</code> runs a
+        persistent mux host. GUI <code>--attach</code> becomes a client when the Unix socket is
+        already up. See <a href="getting-started.html#encrypted">getting started → encrypted sessions</a>.
+      </div>
+      <table>
+        <thead>
+          <tr><th>Flag</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>--create NAME --encrypt</code></td><td>Create encrypted snapshot; prompt for both passwords</td></tr>
+          <tr><td><code>--attach NAME</code></td><td>Unlock with either password; role follows the password</td></tr>
+          <tr><td><code>--read-only</code></td><td>Force observer mode even if you know the write password</td></tr>
+          <tr><td><code>--host</code> / <code>--port</code></td><td>Attach over TCP (no TLS in v1)</td></tr>
+          <tr><td><code>--password-fd FD</code></td><td>Password from fd instead of tty (never argv)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Read-only clients show a status-bar badge. The server blocks PTY input and mutating mux actions for them. Copy, scroll, and local overlays still work.</p>
+    </section>
+
+    <section id="lua-agents" aria-labelledby="lua-agents-title">
+      <p class="eyebrow">07 — Lua plugins</p>
+      <h2 id="lua-agents-title">Plugin API for coding agents</h2>
+      <p class="section-lead">
+        For <strong>terminal automation</strong>, use the <a href="agents.html">Agent API</a> and <a href="llms.txt">llms.txt</a>.
+        For <strong>Lua customization</strong>, see the <a href="plugins.html">plugin guide</a> — do not invent host APIs.
       </p>
       <div class="callout">
         <strong>Invariant:</strong> Plugins cannot draw UI. Use segments, hooks, notify, clipboard override, or <code>run_action</code>.
@@ -254,6 +310,8 @@ config = {
       </div>
       <div>
         <a href="https://traa.sh">traa.sh</a>
+        ·
+        <a href="agents.html">Agents</a>
         ·
         <a href="getting-started.html">Getting started</a>
         ·
